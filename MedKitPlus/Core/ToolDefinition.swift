@@ -16,17 +16,17 @@ struct ToolDefinition: Identifiable, Equatable {
 extension ToolDefinition {
     static let availableTools: [ToolDefinition] = [
         ToolDefinition(
-            id: .vasoactiveCalculator,
-            title: "Vazoaktif Ajan Hesaplayıcı",
-            subtitle: "Doz, infüzyon hızı ve karışım hesaplama",
-            systemImage: "cross.case.fill",
-            isEnabled: true
-        ),
-        ToolDefinition(
             id: .foodMenu,
             title: "Yemek Menüsü",
             subtitle: "Çamlık ve hastane yemek listeleri",
             systemImage: "fork.knife",
+            isEnabled: true
+        ),
+        ToolDefinition(
+            id: .vasoactiveCalculator,
+            title: "Vazoaktif Ajan Hesaplayıcı",
+            subtitle: "Doz, infüzyon hızı ve karışım hesaplama",
+            systemImage: "cross.case.fill",
             isEnabled: true
         )
     ]
