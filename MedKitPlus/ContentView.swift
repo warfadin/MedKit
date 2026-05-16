@@ -63,6 +63,8 @@ struct ContentView: View {
             VasoactiveCalculatorView()
         case .foodMenu:
             FoodMenuView()
+        case .guideUpdates:
+            GuideUpdatesHomeView()
         }
     }
 }

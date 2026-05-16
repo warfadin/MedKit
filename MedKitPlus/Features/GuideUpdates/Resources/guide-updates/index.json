@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "contentVersion": "2026.05.16-001",
+  "lastUpdated": "2026-05-16",
+  "topics": [
+    {
+      "id": "portal_hypertension",
+      "title": "Portal Hypertension",
+      "specialty": "Gastroenterology / Hepatology",
+      "file": "topics/portal-hypertension.json",
+      "lastUpdated": "2026-05-16",
+      "latestGuide": "Baveno VII",
+      "previousGuide": "Baveno VI",
+      "importance": "practiceChanging",
+      "updateCount": 1,
+      "tags": ["portal hypertension", "varices", "cirrhosis", "NSBB"]
+    },
+    {
+      "id": "aki",
+      "title": "Acute Kidney Injury",
+      "specialty": "Nephrology",
+      "file": "topics/aki.json",
+      "lastUpdated": "2026-05-16",
+      "latestGuide": "",
+      "previousGuide": "",
+      "importance": "moderate",
+      "updateCount": 0,
+      "tags": []
+    },
+    {
+      "id": "ckd",
+      "title": "Chronic Kidney Disease",
+      "specialty": "Nephrology",
+      "file": "topics/ckd.json",
+      "lastUpdated": "2026-05-16",
+      "latestGuide": "",
+      "previousGuide": "",
+      "importance": "moderate",
+      "updateCount": 0,
+      "tags": []
+    },
+    {
+      "id": "mash",
+      "title": "MASH",
+      "specialty": "Gastroenterology / Hepatology",
+      "file": "topics/mash.json",
+      "lastUpdated": "2026-05-16",
+      "latestGuide": "",
+      "previousGuide": "",
+      "importance": "moderate",
+      "updateCount": 0,
+      "tags": []
+    },
+    {
+      "id": "sepsis",
+      "title": "Sepsis",
+      "specialty": "Critical Care",
+      "file": "topics/sepsis.json",
+      "lastUpdated": "2026-05-16",
+      "latestGuide": "",
+      "previousGuide": "",
+      "importance": "moderate",
+      "updateCount": 0,
+      "tags": []
+    }
+  ]
+}

@@ -4,6 +4,7 @@ struct ToolDefinition: Identifiable, Equatable {
     enum ToolID: String {
         case vasoactiveCalculator
         case foodMenu
+        case guideUpdates
     }
 
     let id: ToolID
@@ -15,6 +16,13 @@ struct ToolDefinition: Identifiable, Equatable {
 
 extension ToolDefinition {
     static let availableTools: [ToolDefinition] = [
+        ToolDefinition(
+            id: .guideUpdates,
+            title: "Guide Updates",
+            subtitle: "Kılavuz versiyonları arasındaki klinik farklar",
+            systemImage: "doc.text.magnifyingglass",
+            isEnabled: true
+        ),
         ToolDefinition(
             id: .foodMenu,
             title: "Yemek Menüsü",

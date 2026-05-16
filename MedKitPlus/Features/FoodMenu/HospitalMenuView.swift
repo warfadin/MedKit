@@ -10,6 +10,7 @@ struct HospitalMenuView: View {
     @Binding var hasLoaded: Bool
 
     private let service: HospitalMenuService
+    private let bottomContentPadding: CGFloat
     private let calendar = Calendar.current
 
     init(
@@ -19,6 +20,7 @@ struct HospitalMenuView: View {
         isLoading: Binding<Bool>,
         errorMessage: Binding<String?>,
         hasLoaded: Binding<Bool>,
+        bottomContentPadding: CGFloat = 0,
         service: HospitalMenuService = HospitalMenuService()
     ) {
         self._hospitalMenu = hospitalMenu
@@ -27,6 +29,7 @@ struct HospitalMenuView: View {
         self._isLoading = isLoading
         self._errorMessage = errorMessage
         self._hasLoaded = hasLoaded
+        self.bottomContentPadding = bottomContentPadding
         self.service = service
     }
 
@@ -49,6 +52,7 @@ struct HospitalMenuView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+                .padding(.bottom, bottomContentPadding)
             }
         }
         .task {
@@ -123,7 +127,7 @@ struct HospitalMenuView: View {
             ForEach(sortedDays) { day in
                 ScrollView {
                     dailyCard(day)
-                        .padding(.bottom, 28)
+                        .padding(.bottom, 28 + bottomContentPadding)
                 }
                 .refreshable { await loadMenu(forceRemote: true) }
                 .tag(day.date)

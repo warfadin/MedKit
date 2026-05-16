@@ -26,16 +26,13 @@ struct FoodMenuView: View {
         colorScheme == .dark
     }
 
+    private let bottomPickerContentPadding: CGFloat = 24
+
     var body: some View {
         ZStack {
             AppColors.background(isDarkMode).ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                locationPicker
-                    .padding(.horizontal, 16)
-                    .padding(.top, 12)
-                    .padding(.bottom, 6)
-
+            Group {
                 switch selectedContentLocation {
                 case .camlik:
                     CamlikMenuView(
@@ -44,7 +41,8 @@ struct FoodMenuView: View {
                         selectedMode: $selectedCamlikMode,
                         isLoading: $isCamlikLoading,
                         errorMessage: $camlikErrorMessage,
-                        hasLoaded: $hasLoadedCamlik
+                        hasLoaded: $hasLoadedCamlik,
+                        bottomContentPadding: bottomPickerContentPadding
                     )
                 case .hospital:
                     HospitalMenuView(
@@ -53,10 +51,18 @@ struct FoodMenuView: View {
                         selectedMode: $selectedHospitalMode,
                         isLoading: $isHospitalLoading,
                         errorMessage: $hospitalErrorMessage,
-                        hasLoaded: $hasLoadedHospital
+                        hasLoaded: $hasLoadedHospital,
+                        bottomContentPadding: bottomPickerContentPadding
                     )
                 }
             }
+            .animation(.snappy(duration: 0.28, extraBounce: 0.06), value: selectedContentLocation)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            locationPicker
+                .padding(.horizontal, 18)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -68,48 +74,11 @@ struct FoodMenuView: View {
     }
 
     private var locationPicker: some View {
-        HStack(spacing: 10) {
-            ForEach(FoodMenuLocation.allCases) { location in
-                Button {
-                    selectedLocation = location
-                    Task { @MainActor in
-                        await Task.yield()
-                        if selectedLocation == location {
-                            selectedContentLocation = location
-                        }
-                    }
-                } label: {
-                    Label(location.title, systemImage: location.systemImage)
-                        .font(.subheadline.weight(.heavy))
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.82)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .foregroundStyle(location == selectedLocation ? location.accentColor : AppColors.primaryText(isDarkMode))
-                        .background(
-                            Capsule(style: .continuous)
-                                .fill(locationBackground(for: location))
-                        )
-                        .overlay {
-                            Capsule(style: .continuous)
-                                .stroke(locationStroke(for: location), lineWidth: 1)
-                        }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-    }
-
-    private func locationBackground(for location: FoodMenuLocation) -> Color {
-        if location == selectedLocation {
-            return location.accentColor.opacity(isDarkMode ? 0.22 : 0.14)
-        }
-
-        return isDarkMode ? .white.opacity(0.08) : .white.opacity(0.72)
-    }
-
-    private func locationStroke(for location: FoodMenuLocation) -> Color {
-        location == selectedLocation ? location.accentColor.opacity(0.55) : .white.opacity(isDarkMode ? 0.10 : 0.35)
+        FoodMenuLocationPicker(
+            selection: $selectedLocation,
+            isDarkMode: isDarkMode,
+            onSelection: selectLocation
+        )
     }
 
     private func selectToday() {
@@ -120,6 +89,25 @@ struct FoodMenuView: View {
         case .hospital:
             selectedHospitalMode = .day
             selectedHospitalDate = hospitalMenu?.menu(for: Date())?.date ?? Date()
+        }
+    }
+
+    private func selectLocation(_ location: FoodMenuLocation) {
+        guard selectedLocation != location else {
+            return
+        }
+
+        withAnimation(.snappy(duration: 0.26, extraBounce: 0.08)) {
+            selectedLocation = location
+        }
+
+        Task { @MainActor in
+            await Task.yield()
+            if selectedLocation == location {
+                withAnimation(.snappy(duration: 0.28, extraBounce: 0.06)) {
+                    selectedContentLocation = location
+                }
+            }
         }
     }
 }
@@ -158,6 +146,95 @@ private enum FoodMenuLocation: String, CaseIterable, Identifiable {
     }
 }
 
+private struct FoodMenuLocationPicker: View {
+    @Binding var selection: FoodMenuLocation
+    let isDarkMode: Bool
+    let onSelection: (FoodMenuLocation) -> Void
+
+    @Namespace private var selectionNamespace
+
+    private let locations = FoodMenuLocation.allCases
+
+    var body: some View {
+        GeometryReader { proxy in
+            HStack(spacing: 4) {
+                ForEach(locations) { location in
+                    Button {
+                        onSelection(location)
+                    } label: {
+                        segment(for: location)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(location == selection ? .isSelected : [])
+                }
+            }
+            .padding(4)
+            .background(.ultraThinMaterial, in: Capsule(style: .continuous))
+            .background {
+                Capsule(style: .continuous)
+                    .fill(Color.white.opacity(isDarkMode ? 0.06 : 0.28))
+            }
+            .overlay {
+                Capsule(style: .continuous)
+                    .stroke(.white.opacity(isDarkMode ? 0.14 : 0.58), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(isDarkMode ? 0.24 : 0.12), radius: 16, x: 0, y: 8)
+            .contentShape(Capsule(style: .continuous))
+            .gesture(
+                DragGesture(minimumDistance: 0)
+                    .onChanged { gesture in
+                        selectLocation(at: gesture.location.x, totalWidth: proxy.size.width)
+                    }
+            )
+        }
+        .frame(width: 268)
+        .frame(height: 56)
+    }
+
+    private func segment(for location: FoodMenuLocation) -> some View {
+        Label(location.title, systemImage: location.systemImage)
+            .font(.subheadline.weight(.heavy))
+            .lineLimit(1)
+            .minimumScaleFactor(0.82)
+            .foregroundStyle(location == selection ? selectedTextColor(for: location) : AppColors.primaryText(isDarkMode))
+            .frame(maxWidth: .infinity)
+            .frame(height: 48)
+            .background {
+                if location == selection {
+                    ZStack {
+                        Capsule(style: .continuous)
+                            .fill(.thinMaterial)
+                        Capsule(style: .continuous)
+                            .fill(location.accentColor.opacity(isDarkMode ? 0.24 : 0.14))
+                    }
+                    .matchedGeometryEffect(id: "selectedLocation", in: selectionNamespace)
+                }
+            }
+            .overlay {
+                if location == selection {
+                    Capsule(style: .continuous)
+                        .stroke(location.accentColor.opacity(isDarkMode ? 0.58 : 0.46), lineWidth: 1)
+                }
+            }
+            .contentShape(Capsule(style: .continuous))
+    }
+
+    private func selectedTextColor(for location: FoodMenuLocation) -> Color {
+        isDarkMode ? location.accentColor : location.accentColor.opacity(0.92)
+    }
+
+    private func selectLocation(at xPosition: CGFloat, totalWidth: CGFloat) {
+        guard totalWidth > 0 else {
+            return
+        }
+
+        let clampedX = min(max(xPosition, 0), totalWidth - 0.1)
+        let rawIndex = Int((clampedX / totalWidth) * CGFloat(locations.count))
+        let index = min(max(rawIndex, 0), locations.count - 1)
+        onSelection(locations[index])
+    }
+}
+
 private struct CamlikMenuView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Binding var camlikMenu: CanteenMenu?
@@ -168,6 +245,7 @@ private struct CamlikMenuView: View {
     @Binding var hasLoaded: Bool
 
     private let service: FoodMenuService
+    private let bottomContentPadding: CGFloat
     private let calendar = Calendar.current
 
     init(
@@ -177,6 +255,7 @@ private struct CamlikMenuView: View {
         isLoading: Binding<Bool>,
         errorMessage: Binding<String?>,
         hasLoaded: Binding<Bool>,
+        bottomContentPadding: CGFloat = 0,
         service: FoodMenuService = FoodMenuService()
     ) {
         self._camlikMenu = camlikMenu
@@ -185,6 +264,7 @@ private struct CamlikMenuView: View {
         self._isLoading = isLoading
         self._errorMessage = errorMessage
         self._hasLoaded = hasLoaded
+        self.bottomContentPadding = bottomContentPadding
         self.service = service
     }
 
@@ -207,6 +287,7 @@ private struct CamlikMenuView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+                .padding(.bottom, bottomContentPadding)
             }
         }
         .task {
@@ -281,7 +362,7 @@ private struct CamlikMenuView: View {
             ForEach(sortedDays) { day in
                 ScrollView {
                     dailyCard(day)
-                        .padding(.bottom, 28)
+                        .padding(.bottom, 28 + bottomContentPadding)
                 }
                 .refreshable { await loadMenu(forceRemote: true) }
                 .tag(day.date)

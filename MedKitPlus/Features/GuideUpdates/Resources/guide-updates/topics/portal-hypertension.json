@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "portal_hypertension",
+  "title": "Portal Hypertension",
+  "specialty": "Gastroenterology / Hepatology",
+  "lastUpdated": "2026-05-16",
+  "overview": "Key changes in portal hypertension guidance, focusing on non-invasive risk stratification, endoscopy avoidance criteria, and NSBB use.",
+  "sources": [
+    {
+      "id": "baveno_vii",
+      "name": "Baveno VII Consensus",
+      "organization": "Baveno",
+      "year": 2022,
+      "url": "https://example.com",
+      "version": "VII"
+    },
+    {
+      "id": "baveno_vi",
+      "name": "Baveno VI Consensus",
+      "organization": "Baveno",
+      "year": 2015,
+      "url": "https://example.com",
+      "version": "VI"
+    }
+  ],
+  "updates": [
+    {
+      "id": "endoscopy_avoidance",
+      "title": "Non-invasive criteria for avoiding screening endoscopy refined",
+      "summary": "Baveno VII places greater emphasis on LSM and platelet-based risk stratification in selected compensated patients.",
+      "oldRecommendation": "Earlier guidance used Baveno VI criteria to identify low-risk patients who may avoid screening endoscopy.",
+      "newRecommendation": "Current guidance further integrates non-invasive assessment to identify patients at low risk for high-risk varices.",
+      "whatChanged": "The role of non-invasive stratification became more central and clinically actionable.",
+      "clinicalImpact": "May reduce unnecessary screening endoscopies in carefully selected compensated advanced chronic liver disease patients.",
+      "changeType": "modifiedThreshold",
+      "importance": "practiceChanging",
+      "evidenceLevel": "Consensus statement",
+      "tags": ["screening", "endoscopy", "LSM", "platelets"],
+      "sourceIds": ["baveno_vii", "baveno_vi"],
+      "relevantSetting": ["outpatient"],
+      "examRelevant": true
+    }
+  ]
+}
