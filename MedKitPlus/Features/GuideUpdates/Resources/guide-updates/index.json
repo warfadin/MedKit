@@ -5,7 +5,7 @@
   "topics": [
     {
       "id": "portal_hypertension",
-      "title": "Portal Hypertension",
+      "title": "Portal Hipertansiyon",
       "specialty": "Gastroenterology / Hepatology",
       "file": "topics/portal-hypertension.json",
       "lastUpdated": "2026-05-16",
@@ -17,19 +17,19 @@
     },
     {
       "id": "aki",
-      "title": "Acute Kidney Injury",
+      "title": "Akut Böbrek Hasarı",
       "specialty": "Nephrology",
       "file": "topics/aki.json",
       "lastUpdated": "2026-05-16",
-      "latestGuide": "",
-      "previousGuide": "",
-      "importance": "moderate",
-      "updateCount": 0,
-      "tags": []
+      "latestGuide": "KDIGO AKI/AKD Public Review Draft",
+      "previousGuide": "KDIGO AKI 2012",
+      "importance": "practiceChanging",
+      "updateCount": 5,
+      "tags": ["AKI", "AKD", "KDIGO", "biomarkers", "RRT"]
     },
     {
       "id": "ckd",
-      "title": "Chronic Kidney Disease",
+      "title": "Kronik Böbrek Hastalığı",
       "specialty": "Nephrology",
       "file": "topics/ckd.json",
       "lastUpdated": "2026-05-16",
@@ -37,7 +37,7 @@
       "previousGuide": "",
       "importance": "moderate",
       "updateCount": 0,
-      "tags": []
+      "tags": ["kry", "KBH", "kby"]
     },
     {
       "id": "mash",
@@ -54,7 +54,7 @@
     {
       "id": "sepsis",
       "title": "Sepsis",
-      "specialty": "Critical Care",
+      "specialty": "Intensive Care",
       "file": "topics/sepsis.json",
       "lastUpdated": "2026-05-16",
       "latestGuide": "",

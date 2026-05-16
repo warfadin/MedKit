@@ -18,8 +18,8 @@ extension ToolDefinition {
     static let availableTools: [ToolDefinition] = [
         ToolDefinition(
             id: .guideUpdates,
-            title: "Guide Updates",
-            subtitle: "Kılavuz versiyonları arasındaki klinik farklar",
+            title: "Kılavuz Güncellemeleri",
+            subtitle: "Güncel kılavuzlardaki değişiklikler",
             systemImage: "doc.text.magnifyingglass",
             isEnabled: true
         ),

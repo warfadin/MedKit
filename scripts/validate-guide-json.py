@@ -73,19 +73,38 @@ CHANGE_TYPES = {
     "practicePoint",
 }
 
-IMPORTANCE_VALUES = {"practiceChanging", "important", "moderate", "minor"}
+IMPORTANCE_VALUES = {"practiceChanging", "important", "moderate", "minor", "high", "low", "editorial"}
 
 SPECIALTIES = {
     "Gastroenterology / Hepatology",
+    "Gastroenteroloji / Hepatoloji",
+    "Gastroenterology",
+    "Gastroenteroloji",
+    "Hepatology",
+    "Hepatoloji",
     "Nephrology",
+    "Nefroloji",
     "Cardiology",
+    "Kardiyoloji",
     "Critical Care",
+    "Intensive Care",
+    "Yoğun Bakım",
+    "Emergency Medicine",
+    "Acil Tıp",
     "Infectious Diseases",
+    "Enfeksiyon Hastalıkları",
     "Endocrinology",
+    "Endokrinoloji",
     "Pulmonology",
+    "Göğüs Hastalıkları",
+    "Rheumatology",
+    "Romatoloji",
     "Hematology",
+    "Hematoloji",
     "Oncology",
+    "Onkoloji",
     "General Internal Medicine",
+    "İç Hastalıkları",
 }
 
 

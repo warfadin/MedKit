@@ -1,110 +1,179 @@
 import Foundation
+import OSLog
 
 enum GuideUpdatesServiceError: LocalizedError {
     case noReadableIndex
     case noReadableTopic(String)
+    case invalidJSON(String)
+    case network(String)
 
     var errorDescription: String? {
         switch self {
         case .noReadableIndex:
-            "Guide Updates index could not be loaded."
+            "Kılavuz güncellemeleri listesi yüklenemedi."
         case .noReadableTopic(let id):
-            "Guide topic could not be loaded: \(id)"
+            "Kılavuz konusu yüklenemedi: \(id)"
+        case .invalidJSON(let context):
+            "Kılavuz güncellemeleri verisi geçersiz: \(context)"
+        case .network(let context):
+            "Kılavuz güncellemeleri ağ isteği başarısız oldu: \(context)"
         }
     }
 }
 
-final class GuideUpdatesService {
-    private let remoteBaseURL: URL?
+final class GuideDataService {
+    private let remoteRootURL: URL
     private let session: URLSession
     private let decoder = JSONDecoder()
-    private let encoder = JSONEncoder()
     private let fileManager: FileManager
+    private let logger = Logger(subsystem: "de.mehmetataman.medkit", category: "GuideDataService")
 
     init(
-        remoteBaseURL: URL? = nil,
+        remoteRootURL: URL = URL(string: "https://raw.githubusercontent.com/warfadin/medkit-data/main")!,
         session: URLSession = .shared,
         fileManager: FileManager = .default
     ) {
-        self.remoteBaseURL = remoteBaseURL
+        self.remoteRootURL = remoteRootURL
         self.session = session
         self.fileManager = fileManager
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
     }
 
     func loadIndex() async -> Result<GuideUpdatesIndex, Error> {
         do {
-            let index = try await refreshIndexIfNeeded()
+            let index = try readBundledIndex()
+            log("fallback source used: bundled index")
             return .success(index)
         } catch {
-            return .failure(error)
+            log("fallback bundled index failed: \(error.localizedDescription)")
+            return .failure(GuideUpdatesServiceError.noReadableIndex)
         }
     }
 
     func loadTopic(summary: GuideTopicSummary) async -> Result<GuideTopicDetail, Error> {
         do {
-            let detail = try await refreshTopicIfNeeded(summary: summary)
+            let detail = try await loadRemoteTopic(summary: summary)
             return .success(detail)
         } catch {
+            log("remote topic failed for \(summary.id): \(error.localizedDescription)")
+
+            if let cachedTopic = try? readCachedTopic(summary: summary) {
+                log("fallback source used: cache for \(summary.remoteTopicPath)")
+                return .success(cachedTopic)
+            }
+
+            if let bundledTopic = try? readBundledTopic(file: summary.file) {
+                log("fallback source used: bundled topic for \(summary.file)")
+                return .success(bundledTopic)
+            }
+
             return .failure(error)
         }
     }
 
-    private func refreshIndexIfNeeded() async throws -> GuideUpdatesIndex {
-        let localIndex = try? readCachedIndex()
-        let fallbackIndex = localIndex ?? (try? readBundledIndex())
+    func refreshCachedTopics(_ topics: [GuideTopicSummary]) async -> Bool {
+        log("refresh started: \(topics.count) topics")
+        var didCompleteEveryTopic = true
+        for topic in topics {
+            let didCompleteTopic = await refreshCachedTopic(topic)
+            didCompleteEveryTopic = didCompleteEveryTopic && didCompleteTopic
+        }
+        return didCompleteEveryTopic
+    }
 
-        guard let remoteBaseURL else {
-            if let fallbackIndex { return fallbackIndex }
-            throw GuideUpdatesServiceError.noReadableIndex
+    func remoteURL(for summary: GuideTopicSummary) -> URL {
+        remoteRootURL.appendingPathComponent(summary.remoteTopicPath)
+    }
+
+    private func refreshCachedTopic(_ summary: GuideTopicSummary) async -> Bool {
+        clearLegacySepsisCacheIfNeeded(for: summary)
+        let url = remoteURL(for: summary)
+        log("URL checked: \(url.absoluteString)")
+
+        let data: Data
+        do {
+            data = try await fetchRemoteData(from: url)
+        } catch {
+            log("refresh failed but cache retained: \(summary.remoteTopicPath) - \(error.localizedDescription)")
+            return false
         }
 
         do {
-            let remoteIndex: GuideUpdatesIndex = try await fetchJSON(from: remoteBaseURL.appendingPathComponent("index.json"))
-            if remoteIndex.contentVersion != fallbackIndex?.contentVersion {
-                try write(remoteIndex, to: cacheURL(for: "index.json"))
+            _ = try decoder.decode(GuideTopicDetail.self, from: data)
+            log("decode success: \(summary.remoteTopicPath)")
+        } catch {
+            log("refresh failed but cache retained: \(summary.remoteTopicPath) - decode failure: \(error.localizedDescription)")
+            return false
+        }
+
+        do {
+            let cacheURL = try cacheURL(for: summary.remoteTopicPath)
+            if let cachedData = try? Data(contentsOf: cacheURL), cachedData == data {
+                log("content unchanged: \(summary.remoteTopicPath)")
+                log("cache updated or skipped: skipped")
+                return true
             }
-            return remoteIndex
+
+            log("content changed: \(summary.remoteTopicPath)")
+            try write(data: data, to: cacheURL)
+            log("cache updated or skipped: updated")
+            return true
         } catch {
-            if let fallbackIndex { return fallbackIndex }
-            throw error
+            log("refresh failed but cache retained: \(summary.remoteTopicPath) - cache write failure: \(error.localizedDescription)")
+            return false
         }
     }
 
-    private func refreshTopicIfNeeded(summary: GuideTopicSummary) async throws -> GuideTopicDetail {
-        let cachedTopic = try? readCachedTopic(file: summary.file)
+    private func loadRemoteTopic(summary: GuideTopicSummary) async throws -> GuideTopicDetail {
+        clearLegacySepsisCacheIfNeeded(for: summary)
+        let url = remoteURL(for: summary)
+        log("final requested URL: \(url.absoluteString)")
+        log("requested URL: \(url.absoluteString)")
+        log("fetch started: \(summary.remoteTopicPath)")
 
-        guard let remoteBaseURL else {
-            if let cachedTopic { return cachedTopic }
-            if let bundledTopic = try? readBundledTopic(file: summary.file) { return bundledTopic }
-            throw GuideUpdatesServiceError.noReadableTopic(summary.id)
-        }
+        let data = try await fetchRemoteData(from: url)
+        log("remote fetch success: \(summary.remoteTopicPath)")
 
         do {
-            let remoteTopic: GuideTopicDetail = try await fetchJSON(from: remoteBaseURL.appendingPathComponent(summary.file))
-            try write(remoteTopic, to: cacheURL(for: summary.file))
-            return remoteTopic
+            let topic = try decoder.decode(GuideTopicDetail.self, from: data)
+            log("decode success: \(summary.remoteTopicPath)")
+            do {
+                try write(data: data, to: cacheURL(for: summary.remoteTopicPath))
+                log("cache write success: \(summary.remoteTopicPath)")
+            } catch {
+                log("cache write failure: \(error.localizedDescription)")
+            }
+            return topic
         } catch {
-            if let cachedTopic { return cachedTopic }
-            if let bundledTopic = try? readBundledTopic(file: summary.file) { return bundledTopic }
-            throw error
+            log("decode failure: \(error.localizedDescription)")
+            throw GuideUpdatesServiceError.invalidJSON(error.localizedDescription)
         }
     }
 
-    private func fetchJSON<T: Decodable>(from url: URL) async throws -> T {
-        let (data, response) = try await session.data(from: url)
-        if let httpResponse = response as? HTTPURLResponse, !(200..<300).contains(httpResponse.statusCode) {
-            throw URLError(.badServerResponse)
+    private func fetchRemoteData(from url: URL) async throws -> Data {
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(from: url)
+        } catch {
+            log("network error: \(error.localizedDescription)")
+            throw GuideUpdatesServiceError.network(error.localizedDescription)
         }
-        return try decoder.decode(T.self, from: data)
+
+        if let httpResponse = response as? HTTPURLResponse {
+            log("HTTP status code: \(httpResponse.statusCode)")
+            guard (200..<300).contains(httpResponse.statusCode) else {
+                throw GuideUpdatesServiceError.network("HTTP \(httpResponse.statusCode)")
+            }
+        }
+
+        return data
     }
 
-    private func readCachedIndex() throws -> GuideUpdatesIndex {
-        try read(GuideUpdatesIndex.self, from: cacheURL(for: "index.json"))
-    }
-
-    private func readCachedTopic(file: String) throws -> GuideTopicDetail {
-        try read(GuideTopicDetail.self, from: cacheURL(for: file))
+    private func readCachedTopic(summary: GuideTopicSummary) throws -> GuideTopicDetail {
+        let url = try cacheURL(for: summary.remoteTopicPath)
+        log("cache read attempt: \(summary.remoteTopicPath)")
+        let topic = try read(GuideTopicDetail.self, from: url)
+        log("cache read success: \(summary.remoteTopicPath)")
+        return topic
     }
 
     private func readBundledIndex() throws -> GuideUpdatesIndex {
@@ -122,13 +191,12 @@ final class GuideUpdatesService {
         return try decoder.decode(type, from: data)
     }
 
-    private func write<T: Encodable>(_ value: T, to url: URL) throws {
+    private func write(data: Data, to url: URL) throws {
         try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        let data = try encoder.encode(value)
         try data.write(to: url, options: [.atomic])
     }
 
-    private func cacheURL(for file: String) throws -> URL {
+    private func cacheURL(for path: String) throws -> URL {
         let root = try fileManager.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
@@ -137,7 +205,20 @@ final class GuideUpdatesService {
         )
         return root
             .appendingPathComponent("GuideUpdates", isDirectory: true)
-            .appendingPathComponent(file)
+            .appendingPathComponent(path)
+    }
+
+    private func clearLegacySepsisCacheIfNeeded(for summary: GuideTopicSummary) {
+        guard summary.id == "sepsis" else { return }
+        do {
+            let legacyURL = try cacheURL(for: "guides/critical_care/sepsis.json")
+            if fileManager.fileExists(atPath: legacyURL.path) {
+                try fileManager.removeItem(at: legacyURL)
+                log("cleared stale cache path: guides/critical_care/sepsis.json")
+            }
+        } catch {
+            log("stale sepsis cache cleanup skipped: \(error.localizedDescription)")
+        }
     }
 
     private func bundledURL(file: String) throws -> URL {
@@ -169,4 +250,13 @@ final class GuideUpdatesService {
 
         throw CocoaError(.fileNoSuchFile)
     }
+
+    private func log(_ message: String) {
+        logger.debug("\(message, privacy: .public)")
+        #if DEBUG
+        print("[GuideDataService] \(message)")
+        #endif
+    }
 }
+
+typealias GuideUpdatesService = GuideDataService

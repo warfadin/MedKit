@@ -17,15 +17,16 @@ struct GuideUpdatesHomeView: View {
                     header
                     tabPicker
                     specialtyChips
+                    refreshBanner
                     content
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 14)
             }
         }
-        .navigationTitle("Guide Updates")
+        .navigationTitle("Kılavuz Güncellemeleri")
         .navigationBarTitleDisplayMode(.inline)
-        .searchable(text: $viewModel.searchText, prompt: "Search guideline changes")
+        .searchable(text: $viewModel.searchText, prompt: "Ara")
         .task {
             await viewModel.load()
         }
@@ -34,17 +35,26 @@ struct GuideUpdatesHomeView: View {
         }
     }
 
+    @ViewBuilder
+    private var refreshBanner: some View {
+        if let refreshMessage = viewModel.refreshMessage {
+            Text(refreshMessage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Guideline Diff")
-                .font(.caption.weight(.bold))
-                .textCase(.uppercase)
-                .foregroundStyle(.secondary)
-            Text("What changed since the previous guide?")
+            Text("Önceki kılavuzdan bu yana ne değişti?")
                 .font(.largeTitle.weight(.heavy))
                 .foregroundStyle(AppColors.primaryText(isDarkMode))
                 .fixedSize(horizontal: false, vertical: true)
-            Text("Fast, clinical deltas from old recommendations to current recommendations.")
+            Text("Kılavuz sürümleri arasındaki klinik açıdan önemli değişiklikleri karşılaştır.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -53,9 +63,9 @@ struct GuideUpdatesHomeView: View {
     }
 
     private var tabPicker: some View {
-        Picker("Guide Updates Section", selection: $viewModel.selectedTab) {
+        Picker("Kılavuz güncellemeleri bölümü", selection: $viewModel.selectedTab) {
             ForEach(GuideUpdatesTab.allCases) { tab in
-                Text(tab.rawValue).tag(tab)
+                Text(tab.displayTitle).tag(tab)
             }
         }
         .pickerStyle(.segmented)
@@ -65,14 +75,14 @@ struct GuideUpdatesHomeView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 SpecialtyChip(
-                    title: "All",
+                    title: "Tümü",
                     isSelected: viewModel.selectedSpecialty == nil,
                     action: { viewModel.selectedSpecialty = nil }
                 )
 
                 ForEach(viewModel.specialties) { specialty in
                     SpecialtyChip(
-                        title: specialty.title,
+                        title: specialty.displayTitle,
                         isSelected: viewModel.selectedSpecialty == specialty,
                         action: { viewModel.selectedSpecialty = specialty }
                     )
@@ -85,25 +95,25 @@ struct GuideUpdatesHomeView: View {
     @ViewBuilder
     private var content: some View {
         if viewModel.isLoading {
-            ProgressView()
+            ProgressView("Yükleniyor")
                 .frame(maxWidth: .infinity, minHeight: 180)
         } else if let errorMessage = viewModel.errorMessage {
             GuideStateView(
                 systemImage: "exclamationmark.triangle.fill",
-                title: "Unable to Load",
+                title: "Yüklenemedi",
                 message: errorMessage
             )
-        } else if viewModel.selectedTab == .saved {
+        } else if viewModel.selectedTab == .saved && viewModel.visibleTopics.isEmpty {
             GuideStateView(
                 systemImage: "bookmark",
-                title: "No Saved Updates",
-                message: "Saved updates can be wired to persistence in a later pass."
+                title: "Henüz kaydedilen konu yok",
+                message: "Konulara daha sonra hızlı erişmek için kaydedin."
             )
         } else if viewModel.visibleTopics.isEmpty {
             GuideStateView(
                 systemImage: "magnifyingglass",
-                title: "No Topics",
-                message: "Try a different specialty or search term."
+                title: "Güncelleme bulunamadı",
+                message: "Farklı bir branş veya arama terimi deneyin."
             )
         } else {
             LazyVStack(spacing: 12) {
@@ -111,7 +121,11 @@ struct GuideUpdatesHomeView: View {
                     NavigationLink {
                         GuideTopicDetailView(summary: topic)
                     } label: {
-                        GuideTopicCardView(topic: topic)
+                        GuideTopicCardView(
+                            topic: topic,
+                            metadata: viewModel.cardMetadata[topic.id],
+                            isSaved: viewModel.isSaved(topic)
+                        )
                     }
                     .buttonStyle(.plain)
                 }
@@ -123,52 +137,51 @@ struct GuideUpdatesHomeView: View {
 struct GuideTopicCardView: View {
     @Environment(\.colorScheme) private var colorScheme
     let topic: GuideTopicSummary
+    let metadata: GuideTopicCardMetadata?
+    let isSaved: Bool
 
     private var isDarkMode: Bool {
         colorScheme == .dark
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 10) {
-                Image(systemName: "doc.text.magnifyingglass")
-                    .font(.system(size: 18, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 42, height: 42)
-                    .background(.blue, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-
                 VStack(alignment: .leading, spacing: 5) {
                     Text(topic.title)
                         .font(.headline.weight(.heavy))
                         .foregroundStyle(AppColors.primaryText(isDarkMode))
-                    Text(topic.specialty.title)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let yearComparisonText = metadata?.yearComparisonText {
+                        Text(yearComparisonText)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+                    }
                 }
 
                 Spacer(minLength: 8)
 
-                ImportanceBadge(importance: topic.importance)
-            }
+                ImportanceBadge(importance: metadata?.importance ?? topic.importance, compact: true)
 
-            HStack(spacing: 8) {
-                GuideVersionPill(title: "Previous", value: topic.previousGuide)
-                Image(systemName: "arrow.right")
+                Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
-                GuideVersionPill(title: "Latest", value: topic.latestGuide)
             }
 
-            HStack(spacing: 12) {
-                Label(topic.lastUpdated, systemImage: "calendar")
-                Label("\(topic.updateCount) updates", systemImage: "list.bullet.rectangle")
-                Spacer()
-                Image(systemName: "chevron.right")
+            if isSaved {
+                HStack {
+                    Spacer()
+                    Image(systemName: "bookmark.fill")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.blue)
+                        .accessibilityLabel("Kaydedildi")
+                }
             }
-            .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
         }
-        .padding(14)
+        .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
@@ -205,6 +218,16 @@ struct GuideTopicDetailView: View {
         }
         .navigationTitle(viewModel.summary.title)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    viewModel.toggleSaved()
+                } label: {
+                    Image(systemName: viewModel.isSaved ? "bookmark.fill" : "bookmark")
+                }
+                .accessibilityLabel(viewModel.isSaved ? "Kaydı kaldır" : "Kaydet")
+            }
+        }
         .task {
             await viewModel.load()
         }
@@ -212,45 +235,57 @@ struct GuideTopicDetailView: View {
 
     private var detailHeader: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(viewModel.summary.specialty.title)
-                .font(.caption.weight(.bold))
-                .textCase(.uppercase)
-                .foregroundStyle(.secondary)
             Text(viewModel.summary.title)
                 .font(.largeTitle.weight(.heavy))
                 .foregroundStyle(AppColors.primaryText(isDarkMode))
                 .fixedSize(horizontal: false, vertical: true)
-            HStack(spacing: 8) {
-                ImportanceBadge(importance: viewModel.summary.importance)
-                Text("\(viewModel.summary.updateCount) updates")
+            HStack(spacing: 7) {
+                if let guidelineComparisonText = viewModel.guidelineComparisonText {
+                    Text(guidelineComparisonText)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.82)
+                    Text("•")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(.secondary)
+                }
+                Text(viewModel.changeCountText)
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
             }
+            Text("Güncelliğin kontrol edildiği tarih: \(viewModel.reviewDate)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
         }
     }
 
     @ViewBuilder
     private var detailContent: some View {
         if viewModel.isLoading {
-            ProgressView()
+            ProgressView("Yükleniyor")
                 .frame(maxWidth: .infinity, minHeight: 220)
         } else if let errorMessage = viewModel.errorMessage {
             GuideStateView(
                 systemImage: "exclamationmark.triangle.fill",
-                title: "Topic Unavailable",
+                title: "Konu kullanılamıyor",
                 message: errorMessage
             )
         } else if let topic = viewModel.topic {
-            GuideGlassSection(title: "Summary") {
-                Text(topic.overview.isEmpty ? "No overview available yet." : topic.overview)
+            GuideGlassSection(title: "Özet") {
+                Text(topic.overview.isEmpty ? "Henüz özet yok." : topic.overview)
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            GuideGlassSection(title: "What Changed") {
+            if let firstUpdate = topic.updates.first {
+                PreviousVsCurrentView(update: firstUpdate)
+            }
+
+            GuideGlassSection(title: "Ne Değişti?") {
                 if topic.updates.isEmpty {
-                    Text("No update items are available yet.")
+                    Text("Güncelleme bulunamadı.")
                         .foregroundStyle(.secondary)
                 } else {
                     VStack(spacing: 12) {
@@ -261,14 +296,10 @@ struct GuideTopicDetailView: View {
                 }
             }
 
-            if let firstUpdate = topic.updates.first {
-                PreviousVsCurrentView(update: firstUpdate)
-            }
-
-            GuideGlassSection(title: "Clinical Impact") {
+            GuideGlassSection(title: "Klinik Etki") {
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(topic.updates) { update in
-                        Text(update.clinicalImpact.isEmpty ? "No clinical impact available." : update.clinicalImpact)
+                        Text(update.clinicalImpact.isEmpty ? "Klinik etki bilgisi yok." : update.clinicalImpact)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -286,33 +317,21 @@ struct GuideUpdateItemCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .top, spacing: 8) {
-                Text(update.title)
-                    .font(.headline.weight(.heavy))
-                    .fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                ImportanceBadge(importance: update.importance)
+            Text(update.title)
+                .font(.headline.weight(.heavy))
+                .fixedSize(horizontal: false, vertical: true)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ImportanceBadge(importance: update.importance)
+                    ChangeTypeBadge(changeType: update.changeType)
+                }
             }
 
             Text(update.summary)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-
-            HStack(spacing: 8) {
-                Text(update.changeType.title)
-                    .font(.caption.weight(.bold))
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(.blue.opacity(0.12), in: Capsule())
-                    .foregroundStyle(.blue)
-
-                if update.examRelevant {
-                    Label("Exam", systemImage: "checkmark.seal.fill")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(.green)
-                }
-            }
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -324,20 +343,20 @@ struct PreviousVsCurrentView: View {
     let update: GuideUpdateItem
 
     var body: some View {
-        GuideGlassSection(title: "Previous vs Current") {
+        GuideGlassSection(title: "Önceki / Güncel") {
             VStack(spacing: 10) {
                 RecommendationBlock(
-                    title: "Previous",
+                    title: "Önceki",
                     systemImage: "clock.arrow.circlepath",
                     text: update.oldRecommendation
                 )
                 RecommendationBlock(
-                    title: "Current",
+                    title: "Güncel",
                     systemImage: "checkmark.circle.fill",
                     text: update.newRecommendation
                 )
                 RecommendationBlock(
-                    title: "Delta",
+                    title: "Fark",
                     systemImage: "arrow.triangle.2.circlepath",
                     text: update.whatChanged
                 )
@@ -350,9 +369,9 @@ struct GuidelineSourcesView: View {
     let sources: [GuidelineSource]
 
     var body: some View {
-        GuideGlassSection(title: "Sources") {
+        GuideGlassSection(title: "Kaynaklar") {
             if sources.isEmpty {
-                Text("No sources are available yet.")
+                Text("Kaynaklar kullanılamıyor.")
                     .foregroundStyle(.secondary)
             } else {
                 VStack(alignment: .leading, spacing: 10) {
@@ -360,11 +379,11 @@ struct GuidelineSourcesView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(source.name)
                                 .font(.subheadline.weight(.bold))
-                            Text("\(source.organization) - \(source.year) - \(source.version)")
+                            Text(source.metadataText)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             if let url = URL(string: source.url), !source.url.isEmpty {
-                                Link("Open source", destination: url)
+                                Link("Kaynağı aç", destination: url)
                                     .font(.caption.weight(.bold))
                             }
                         }
@@ -412,7 +431,7 @@ private struct RecommendationBlock: View {
             Label(title, systemImage: systemImage)
                 .font(.caption.weight(.bold))
                 .foregroundStyle(.secondary)
-            Text(text.isEmpty ? "No recommendation text available." : text)
+            Text(text.isEmpty ? "Öneri metni yok." : text)
                 .font(.subheadline)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -441,35 +460,17 @@ private struct SpecialtyChip: View {
     }
 }
 
-private struct GuideVersionPill: View {
-    let title: String
-    let value: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(.caption2.weight(.bold))
-                .foregroundStyle(.secondary)
-            Text(value.isEmpty ? "Pending" : value)
-                .font(.caption.weight(.heavy))
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-    }
-}
-
 private struct ImportanceBadge: View {
     let importance: GuideImportance
+    var compact = false
 
     var body: some View {
-        Text(importance.title)
+        Text(compact ? importance.compactTitle : importance.title)
             .font(.caption2.weight(.heavy))
             .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .minimumScaleFactor(0.86)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
             .foregroundStyle(color)
             .background(color.opacity(0.12), in: Capsule())
     }
@@ -477,10 +478,25 @@ private struct ImportanceBadge: View {
     private var color: Color {
         switch importance {
         case .practiceChanging: .red
-        case .important: .orange
+        case .high, .important: .orange
         case .moderate: .blue
-        case .minor: .secondary
+        case .minor, .low, .editorial: .secondary
         }
+    }
+}
+
+private struct ChangeTypeBadge: View {
+    let changeType: GuideChangeType
+
+    var body: some View {
+        Text(changeType.title)
+            .font(.caption2.weight(.heavy))
+            .lineLimit(1)
+            .minimumScaleFactor(0.86)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(.blue.opacity(0.12), in: Capsule())
+            .foregroundStyle(.blue)
     }
 }
 

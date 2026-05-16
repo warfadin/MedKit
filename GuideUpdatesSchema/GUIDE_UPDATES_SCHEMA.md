@@ -7,11 +7,19 @@ If data is missing, keep the existing field and use `null`, an empty string, or 
 ## Remote Layout
 
 ```text
-/guide-updates/index.json
-/guide-updates/topics/<topic-file>.json
+https://raw.githubusercontent.com/warfadin/medkit-data/main/guides/<specialty>/<topic>.json
 ```
 
-The app loads `index.json` first. Topic JSON files are lazy-loaded when the user opens a topic.
+The current app build keeps the bundled `index.json` only as temporary topic metadata until remote index support is added. Topic JSON files are loaded from `medkit-data` first, then cached locally for offline fallback. Bundled JSON remains a fallback only.
+
+Example:
+
+```text
+guides/gastroenterology/portal_hypertension.json
+guides/nephrology/aki.json
+guides/nephrology/ckd.json
+guides/endocrinology/obesity.json
+```
 
 ## Index Object
 
@@ -108,14 +116,18 @@ Required fields:
 `importance`:
 
 - `practiceChanging`
+- `high`
 - `important`
 - `moderate`
 - `minor`
+- `low`
+- `editorial`
 
 `specialty`:
 
 - `Gastroenterology / Hepatology`
 - `Nephrology`
+- `Nefroloji`
 - `Cardiology`
 - `Critical Care`
 - `Infectious Diseases`
