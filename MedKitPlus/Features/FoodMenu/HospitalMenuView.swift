@@ -113,11 +113,17 @@ struct HospitalMenuView: View {
                 message: "Kayıtlı hastane menüsünde gösterilecek gün bulunamadı."
             )
         } else {
-            switch selectedMode {
-            case .day:
-                dailyPager
-            case .month:
-                monthList
+            VStack(alignment: .leading, spacing: 12) {
+                if let errorMessage {
+                    refreshErrorBanner(errorMessage)
+                }
+
+                switch selectedMode {
+                case .day:
+                    dailyPager
+                case .month:
+                    monthList
+                }
             }
         }
     }
@@ -301,6 +307,21 @@ struct HospitalMenuView: View {
         }
     }
 
+    private func refreshErrorBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.red)
+
+            Text(message)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColors.primaryText(isDarkMode))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(AppColors.controlBackground(isDarkMode), in: RoundedRectangle(cornerRadius: 8))
+    }
+
     private func visibleMenuItems(_ items: [String]) -> [String] {
         items
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -334,9 +355,7 @@ struct HospitalMenuView: View {
             applyMenu(menu)
             errorMessage = nil
         } catch {
-            if hospitalMenu == nil {
-                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-            }
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
 
         isLoading = false

@@ -348,11 +348,17 @@ private struct CamlikMenuView: View {
                 message: "Kayıtlı aylık Çamlık menüsünde gösterilecek gün bulunamadı."
             )
         } else {
-            switch selectedMode {
-            case .day:
-                dailyPager
-            case .month:
-                monthList
+            VStack(alignment: .leading, spacing: 12) {
+                if let errorMessage {
+                    refreshErrorBanner(errorMessage)
+                }
+
+                switch selectedMode {
+                case .day:
+                    dailyPager
+                case .month:
+                    monthList
+                }
             }
         }
     }
@@ -572,6 +578,21 @@ private struct CamlikMenuView: View {
         }
     }
 
+    private func refreshErrorBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.subheadline.weight(.bold))
+                .foregroundStyle(.green)
+
+            Text(message)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(AppColors.primaryText(isDarkMode))
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(12)
+        .background(AppColors.controlBackground(isDarkMode), in: RoundedRectangle(cornerRadius: 8))
+    }
+
     private func visibleMealItems(_ items: [MealItem]) -> [MealItem] {
         items.filter { !$0.displayName.isEmpty && !$0.isAllergenOnly }
     }
@@ -587,6 +608,7 @@ private struct CamlikMenuView: View {
         let shouldFetch = forceRemote
             || cachedMenu == nil
             || service.shouldRefreshMonthlyCamlikMenu()
+            || cachedMenu.map(service.shouldRepairMonthlyCamlikMenu) == true
 
         guard shouldFetch else {
             isLoading = false
@@ -603,9 +625,7 @@ private struct CamlikMenuView: View {
             applyMenu(menu)
             errorMessage = nil
         } catch {
-            if camlikMenu == nil {
-                errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-            }
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
         }
 
         isLoading = false

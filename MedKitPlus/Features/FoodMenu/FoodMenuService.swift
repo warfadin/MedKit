@@ -89,18 +89,29 @@ struct FoodMenuService {
         cache.shouldRefreshToday(calendar: calendar, now: now)
     }
 
+    func shouldRepairMonthlyCamlikMenu(_ menu: CanteenMenu) -> Bool {
+        menu.days.contains { day in
+            !day.ordovr.isEmpty && day.lunch.isEmpty
+        }
+    }
+
     func fetchMonthlyCamlikMenu(forceRemote: Bool = false) async throws -> CanteenMenu {
         let cachedMenu = cache.load()
 
         if !forceRemote,
            let cachedMenu,
-           !cache.shouldRefreshToday(calendar: calendar) {
+           !cache.shouldRefreshToday(calendar: calendar),
+           !shouldRepairMonthlyCamlikMenu(cachedMenu) {
             return cachedMenu
         }
 
         do {
             return try await fetchAndCacheRemoteMonthlyCamlikMenu()
         } catch {
+            if forceRemote {
+                throw error
+            }
+
             if let cachedMenu {
                 return cachedMenu
             }
@@ -120,9 +131,11 @@ struct FoodMenuService {
     func fetchRemoteMonthlyCamlikMenu() async throws -> CanteenMenu {
         let data: Data
         let response: URLResponse
+        var request = URLRequest(url: menuURL)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
 
         do {
-            (data, response) = try await session.data(from: menuURL)
+            (data, response) = try await session.data(for: request)
         } catch {
             throw FoodMenuServiceError.transportFailed(error.localizedDescription)
         }
@@ -154,17 +167,14 @@ struct FoodMenuService {
             throw FoodMenuServiceError.camlikSectionNotFound
         }
 
-        guard let lunchStart = monthlyBlock.firstIndex(of: "Öğle Yemeği") else {
-            throw FoodMenuServiceError.mealSectionNotFound("Öğle Yemeği")
-        }
-
-        guard let ordovrStart = monthlyBlock.firstIndex(of: "Ordövr") else {
+        guard let ordovrLines = mealSectionLines(named: "Ordövr", in: monthlyBlock) else {
             throw FoodMenuServiceError.mealSectionNotFound("Ordövr")
         }
 
-        let lunchLines = Array(monthlyBlock[(lunchStart + 1)..<ordovrStart])
-        let ordovrLines = Array(monthlyBlock[(ordovrStart + 1)...])
-        let lunchByDay = parsedMealsByDate(from: lunchLines)
+        let camlikLunchLines = mealSectionLines(named: "Öğle Yemeği", in: monthlyBlock) ?? []
+        let camlikLunchByDay = parsedMealsByDate(from: camlikLunchLines)
+        let personelLunchByDay = fallbackPersonelLunchByDay(from: lines)
+        let lunchByDay = mergedCamlikLunch(camlikLunchByDay, fallback: personelLunchByDay)
         let ordovrByDay = parsedMealsByDate(from: ordovrLines)
         let allParsedDates = Set(lunchByDay.keys).union(ordovrByDay.keys).sorted()
 
@@ -198,6 +208,29 @@ struct FoodMenuService {
         return CanteenMenu(title: "Çamlık Yemek Menüsü", days: days)
     }
 
+    private func mergedCamlikLunch(
+        _ camlikLunchByDay: [Date: ParsedDailyMeals],
+        fallback personelLunchByDay: [Date: ParsedDailyMeals]
+    ) -> [Date: ParsedDailyMeals] {
+        var merged = camlikLunchByDay
+
+        for (date, fallbackMeals) in personelLunchByDay where merged[date]?.items.isEmpty != false {
+            merged[date] = fallbackMeals
+        }
+
+        return merged
+    }
+
+    private func fallbackPersonelLunchByDay(from lines: [String]) -> [Date: ParsedDailyMeals] {
+        let personelBlocks = menuBlocks(named: "Personel Yemek Menüsü", in: lines)
+        guard let monthlyBlock = personelBlocks.max(by: { dateCount(in: $0) < dateCount(in: $1) }),
+              let lunchLines = mealSectionLines(named: "Öğle Yemeği", in: monthlyBlock) else {
+            return [:]
+        }
+
+        return parsedMealsByDate(from: lunchLines)
+    }
+
     private func menuBlocks(named title: String, in lines: [String]) -> [[String]] {
         lines.indices.compactMap { index -> [String]? in
             guard lines[index] == title else {
@@ -211,6 +244,16 @@ struct FoodMenuService {
 
             return Array(followingLines[..<nextMenuIndex])
         }
+    }
+
+    private func mealSectionLines(named sectionTitle: String, in lines: [String]) -> [String]? {
+        guard let sectionStart = lines.firstIndex(of: sectionTitle) else {
+            return nil
+        }
+
+        let followingLines = Array(lines[(sectionStart + 1)...])
+        let nextSectionIndex = followingLines.firstIndex(where: isMealSectionTitle) ?? followingLines.count
+        return Array(followingLines[..<nextSectionIndex])
     }
 
     private func parsedMealsByDate(from lines: [String]) -> [Date: ParsedDailyMeals] {
@@ -328,6 +371,14 @@ struct FoodMenuService {
         }
 
         return !isWeekday(line)
+    }
+
+    private func isMealSectionTitle(_ line: String) -> Bool {
+        [
+            "Öğle Yemeği",
+            "Akşam Yemeği",
+            "Ordövr"
+        ].contains(line)
     }
 
     private func cleanedMealName(_ line: String) -> String {

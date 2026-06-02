@@ -84,6 +84,10 @@ struct HospitalMenuService {
         do {
             return try await fetchAndCacheRemoteMonthlyHospitalMenu()
         } catch {
+            if forceRemote {
+                throw error
+            }
+
             if let cachedMenu {
                 return cachedMenu
             }
@@ -103,9 +107,11 @@ struct HospitalMenuService {
     func fetchRemoteMonthlyHospitalMenu() async throws -> HospitalMonthlyMenu {
         let data: Data
         let response: URLResponse
+        var request = URLRequest(url: menuURL)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
 
         do {
-            (data, response) = try await session.data(from: menuURL)
+            (data, response) = try await session.data(for: request)
         } catch {
             throw HospitalMenuServiceError.transportFailed(error.localizedDescription)
         }
