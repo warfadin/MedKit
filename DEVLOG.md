@@ -4,7 +4,7 @@
 
 - Kılavuz konusu açılırken ve önbellek yenilenirken konu kimliğini dizinle karşılaştırdık. Uzak AKI ve KBH dosyalarının mevcut kimliklerini kabul ettik. Eşleşmeyen uzak dosyada geçerli önbelleğe veya uygulama içindeki konuya dönülüyor.
 - Swift regresyon testleri Linux'ta `FoundationNetworking` kullanılarak ve `OSLog` satırları geçici kopyadan çıkarılarak geçti. iOS derlemesi ve simülatör kontrolü bekliyor.
-- PR bağlantısı, dal yayımlandıktan sonra eklenecek. [PR oluşturma sayfası](https://github.com/warfadin/MedKit/compare/dev...codex/guide-updates-cache-validation?expand=1)
+- [PR #2](https://github.com/warfadin/MedKit/pull/2)
 - Sonraki adım, Xcode’da AKI ve KBH konularını bir kez çevrimiçi açıp ağ kapalıyken tekrar açarak doğrulamak.
 
 macOS'ta servis regresyon testini depo kökünden çalıştırmak için:
