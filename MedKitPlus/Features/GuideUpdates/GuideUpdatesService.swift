@@ -26,16 +26,19 @@ final class GuideDataService {
     private let session: URLSession
     private let decoder = JSONDecoder()
     private let fileManager: FileManager
+    private let cacheDirectory: URL?
     private let logger = Logger(subsystem: "de.mehmetataman.medkit", category: "GuideDataService")
 
     init(
         remoteRootURL: URL = URL(string: "https://raw.githubusercontent.com/warfadin/medkit-data/main")!,
         session: URLSession = .shared,
-        fileManager: FileManager = .default
+        fileManager: FileManager = .default,
+        cacheDirectory: URL? = nil
     ) {
         self.remoteRootURL = remoteRootURL
         self.session = session
         self.fileManager = fileManager
+        self.cacheDirectory = cacheDirectory
     }
 
     func loadIndex() async -> Result<GuideUpdatesIndex, Error> {
@@ -61,7 +64,7 @@ final class GuideDataService {
                 return .success(cachedTopic)
             }
 
-            if let bundledTopic = try? readBundledTopic(file: summary.file) {
+            if let bundledTopic = try? readBundledTopic(summary: summary) {
                 log("fallback source used: bundled topic for \(summary.file)")
                 return .success(bundledTopic)
             }
@@ -98,7 +101,7 @@ final class GuideDataService {
         }
 
         do {
-            _ = try decoder.decode(GuideTopicDetail.self, from: data)
+            _ = try decodeTopic(from: data, expectedID: summary.id)
             log("decode success: \(summary.remoteTopicPath)")
         } catch {
             log("refresh failed but cache retained: \(summary.remoteTopicPath) - decode failure: \(error.localizedDescription)")
@@ -134,7 +137,7 @@ final class GuideDataService {
         log("remote fetch success: \(summary.remoteTopicPath)")
 
         do {
-            let topic = try decoder.decode(GuideTopicDetail.self, from: data)
+            let topic = try decodeTopic(from: data, expectedID: summary.id)
             log("decode success: \(summary.remoteTopicPath)")
             do {
                 try write(data: data, to: cacheURL(for: summary.remoteTopicPath))
@@ -145,7 +148,7 @@ final class GuideDataService {
             return topic
         } catch {
             log("decode failure: \(error.localizedDescription)")
-            throw GuideUpdatesServiceError.invalidJSON(error.localizedDescription)
+            throw error
         }
     }
 
@@ -171,24 +174,39 @@ final class GuideDataService {
     private func readCachedTopic(summary: GuideTopicSummary) throws -> GuideTopicDetail {
         let url = try cacheURL(for: summary.remoteTopicPath)
         log("cache read attempt: \(summary.remoteTopicPath)")
-        let topic = try read(GuideTopicDetail.self, from: url)
+        let topic = try decodeTopic(from: Data(contentsOf: url), expectedID: summary.id)
         log("cache read success: \(summary.remoteTopicPath)")
         return topic
     }
 
     private func readBundledIndex() throws -> GuideUpdatesIndex {
         let url = try bundledURL(file: "index.json")
-        return try read(GuideUpdatesIndex.self, from: url)
+        return try decoder.decode(GuideUpdatesIndex.self, from: Data(contentsOf: url))
     }
 
-    private func readBundledTopic(file: String) throws -> GuideTopicDetail {
-        let url = try bundledURL(file: file)
-        return try read(GuideTopicDetail.self, from: url)
+    private func readBundledTopic(summary: GuideTopicSummary) throws -> GuideTopicDetail {
+        let url = try bundledURL(file: summary.file)
+        return try decodeTopic(from: Data(contentsOf: url), expectedID: summary.id)
     }
 
-    private func read<T: Decodable>(_ type: T.Type, from url: URL) throws -> T {
-        let data = try Data(contentsOf: url)
-        return try decoder.decode(type, from: data)
+    private func decodeTopic(from data: Data, expectedID: String) throws -> GuideTopicDetail {
+        let topic: GuideTopicDetail
+        do {
+            topic = try decoder.decode(GuideTopicDetail.self, from: data)
+        } catch {
+            throw GuideUpdatesServiceError.invalidJSON(error.localizedDescription)
+        }
+
+        // The remote AKI and CKD documents use long IDs while the bundled index uses short IDs.
+        let remoteAlias: String? = switch expectedID {
+        case "aki": "acute_kidney_injury"
+        case "ckd": "chronic_kidney_disease"
+        default: nil
+        }
+        guard !topic.id.isEmpty, topic.id == expectedID || topic.id == remoteAlias else {
+            throw GuideUpdatesServiceError.invalidJSON("Konu kimliği eşleşmiyor (\(expectedID)).")
+        }
+        return topic
     }
 
     private func write(data: Data, to url: URL) throws {
@@ -197,6 +215,9 @@ final class GuideDataService {
     }
 
     private func cacheURL(for path: String) throws -> URL {
+        if let cacheDirectory {
+            return cacheDirectory.appendingPathComponent(path)
+        }
         let root = try fileManager.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
