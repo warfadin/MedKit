@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f1f5fa">
+  <meta name="description" content="Dahiliye ve yoğun bakım için klinik araçlar.">
+  <title>MedKit+ · Klinik Araçlar</title>
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">İçeriğe geç</a>
+  <div class="layout">
+    <aside class="sidebar">
+      <a class="brand" href="#araclar"><span class="brand-mark" aria-hidden="true">+</span><span>MedKit<span class="accent">+</span><small>Klinik araçlar</small></span></a>
+      <nav id="nav" aria-label="Ana gezinme"></nav>
+      <div class="side-foot"><span class="dot" aria-hidden="true"></span><span id="connection">Çevrimiçi</span></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar"><span id="crumb">Araçlar</span><div class="utilities">
+        <label class="theme"><span class="sr-only">Görünüm</span><select id="theme"><option value="system">Sistem</option><option value="light">Açık</option><option value="dark">Koyu</option></select></label>
+        <button id="share" class="subtle" type="button">Paylaş</button>
+      </div></header>
+      <main id="main" tabindex="-1"></main>
+      <footer><span>MedKit+</span><span id="offline-ready" role="status"></span></footer>
+    </div>
+  </div>
+  <p id="toast" role="status" hidden></p>
+  <noscript>MedKit+ araçlarını açmak için JavaScript’i etkinleştirin.</noscript>
+</body>
+</html>
