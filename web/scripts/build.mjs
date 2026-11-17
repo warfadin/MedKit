@@ -3,12 +3,16 @@ import {mkdir,readdir,readFile,writeFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 import {resolve} from 'node:path';
 import {topics, hospitalURL} from '../public/config.js';
+import {validGuide} from '../public/guide-content.js';
 import {parseUniversity} from '../worker/university.js';
 
 const dataRevision = '5c9561316d49665b8e2aef54c9264b57776c4b32';
 const dataRoot = process.env.MEDKIT_DATA_CHECKOUT;
-const paths = Object.fromEntries([...topics.map((topic) => ['guide.' + topic.id,topic.url]),['hospital',hospitalURL]]);
-const snapshot = Object.fromEntries(await Promise.all(Object.entries(paths).map(async ([key,url]) => {
+const sources = [
+  ...topics.map((topic) => ({key:'guide.' + topic.id, url:topic.url, validate:(guide) => validGuide(topic, guide)})),
+  {key:'hospital', url:hospitalURL, validate:(menu) => Array.isArray(menu?.days)}
+];
+const snapshot = Object.fromEntries(await Promise.all(sources.map(async ({key,url,validate}) => {
   const path = url.split('/main/')[1];
   const raw = dataRoot ? execFileSync('git',['-C',resolve(dataRoot),'show',dataRevision + ':' + path],{encoding:'utf8'}) :
     await fetch(url.replace('/main/','/' + dataRevision + '/'),{signal:AbortSignal.timeout(15000)}).then((response) => {
@@ -16,7 +20,7 @@ const snapshot = Object.fromEntries(await Promise.all(Object.entries(paths).map(
       return response.text();
     });
   const data = JSON.parse(raw);
-  if (key === 'hospital' ? !Array.isArray(data.days) : data.schemaVersion !== 1 || !Array.isArray(data.updates)) throw new Error('Invalid seed: ' + path);
+  if (!validate(data)) throw new Error('Invalid seed: ' + path);
   return [key,data];
 })));
 if (process.env.MEDKIT_UNIVERSITY_HTML) {

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import {agents,calculate,decimal,sliderDose,sliderLimit,sliderProgress} from '../public/calculator.js';
 import {parseUniversity} from '../worker/university.js';
 import {cached,refresh} from '../public/cache.js';
+import {topics} from '../public/config.js';
+import {selectGuideEntry,validGuide} from '../public/guide-content.js';
 
 test('converts both directions for all Swift presets and accepts decimal comma', () => {
   for (const agent of agents) {
@@ -46,4 +48,46 @@ test('automatic refresh is deduplicated and stale content survives failure and o
   assert.equal(await load(true),'offline');
   assert.deepEqual(cached('test').data,{valid:true});
   assert.equal(calls,2);
+});
+
+test('guide validation accepts each configured ID and rejects a different topic', () => {
+  const guide = {
+    schemaVersion:1, title:'Örnek konu', specialty:'Örnek branş',
+    lastUpdated:'2026-11-16', sources:[], updates:[{id:'sample',title:'Örnek güncelleme'}]
+  };
+  for (const [id,remoteId] of [
+    ['aki','acute_kidney_injury'], ['ckd','chronic_kidney_disease'],
+    ['portal_hypertension','portal_hypertension'], ['mash','mash'], ['sepsis','sepsis']
+  ]) {
+    const topic = topics.find((candidate) => candidate.id === id);
+    assert.ok(validGuide(topic,{...guide,id}));
+    assert.ok(validGuide(topic,{...guide,id:remoteId}));
+    const differentId = id === 'sepsis' ? 'acute_kidney_injury' : 'sepsis';
+    assert.equal(validGuide(topic,{...guide,id:differentId}),false);
+    assert.equal(validGuide(topic,{...guide,id,updates:[null]}),false);
+  }
+});
+
+test('a mismatched guide cannot replace a valid cache or take precedence over the snapshot', async (t) => {
+  const topic = topics.find((candidate) => candidate.id === 'aki');
+  const correct = {
+    schemaVersion:1, id:'acute_kidney_injury', title:'Örnek konu',
+    specialty:'Örnek branş', lastUpdated:'2026-11-16', sources:[], updates:[]
+  };
+  const wrong = {...correct, id:'sepsis'};
+  const wrongEntry = {data:wrong, fetchedAt:1};
+  assert.deepEqual(selectGuideEntry(topic,wrongEntry,correct),{data:correct});
+  assert.equal(selectGuideEntry(topic,wrongEntry,wrong),null);
+
+  const previousNavigator = Object.getOwnPropertyDescriptor(globalThis,'navigator');
+  Object.defineProperty(globalThis,'navigator',{configurable:true,value:{onLine:true}});
+  t.after(() => Object.defineProperty(globalThis,'navigator',previousNavigator));
+  const load = () => refresh('guide.aki',topic.url,(value) => validGuide(topic,value),true);
+  const upstream = t.mock.method(globalThis,'fetch',async () => Response.json(correct));
+  assert.equal(await load(),'updated');
+  const validEntry = cached('guide.aki');
+  upstream.mock.mockImplementation(async () => Response.json(wrong));
+  assert.equal(await load(),'failed');
+  assert.deepEqual(cached('guide.aki'),validEntry);
+  assert.deepEqual(selectGuideEntry(topic,cached('guide.aki'),wrong),validEntry);
 });

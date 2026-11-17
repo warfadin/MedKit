@@ -1,5 +1,6 @@
 import { topics, hospitalURL, universityURL } from './config.js';
 import { cached, read, refresh, write } from './cache.js';
+import { selectGuideEntry, validGuide } from './guide-content.js';
 import { agents, calculate, decimal, sliderDose, sliderLimit, sliderProgress } from './calculator.js';
 
 const $ = (id) => document.getElementById(id);
@@ -170,13 +171,14 @@ function calculator() {
   setAgent();
 }
 
-const validGuide = (g) => g?.schemaVersion === 1 && text(g.id) && text(g.title) && text(g.specialty) && date(g.lastUpdated) &&
-  Array.isArray(g.sources) && g.sources.every((s) => text(s?.id) && text(s.name) && text(s.url)) &&
-  Array.isArray(g.updates) && g.updates.every((u) => text(u?.id) && text(u.title));
 const validMenu = (m) => text(m?.title) && Array.isArray(m.days) &&
   m.days.every((d) => date(d?.date) && Array.isArray(d.lunch) && d.lunch.every(text) &&
     ['ordovr','dinner'].every((key) => d[key] === undefined || Array.isArray(d[key]) && d[key].every(text)));
 const keys = (item) => 'guide.' + item.id;
+function guideEntry(topic) {
+  const key = keys(topic);
+  return selectGuideEntry(topic, cached(key), seed[key]);
+}
 const saved = () => new Set(read('saved') ?? []);
 function dataStatus(entry) {
   if (!entry) return navigator.onLine ? 'İçerik yükleniyor veya kaynağa ulaşılamadı.' : 'Çevrimdışı · kayıtlı içerik bulunamadı.';
@@ -184,7 +186,7 @@ function dataStatus(entry) {
   return entry.fetchedAt ? mode + ' · son başarılı yenileme ' + time(entry.fetchedAt) : mode + ' · ilk sürüm arşivi';
 }
 async function loadGuide(items, force, token) {
-  const results = await Promise.all(items.map((t) => refresh(keys(t), t.url, validGuide, force)));
+  const results = await Promise.all(items.map((t) => refresh(keys(t), t.url, (guide) => validGuide(t, guide), force)));
   if (screen !== token) return;
   if (force) notify(results.includes('offline') ? 'Çevrimdışısınız. Kayıtlı içerik gösteriliyor.' :
     results.includes('failed') ? 'Bazı kaynaklar yenilenemedi. Varsa kayıtlı içerik korundu.' : 'Kılavuz içeriği yenilendi.');
@@ -209,7 +211,7 @@ function guideUpdate(update, sources, topicId) {
     (sourcesHere.length ? '<h3>İlgili kaynaklar</h3><ul>' + sourcesHere.map(guideSource).join('') + '</ul>' : '') + '</details>';
 }
 function topicCard(topic, savedIds) {
-  const entry = available(keys(topic));
+  const entry = guideEntry(topic);
   const data = entry?.data;
   return '<article class="card topic"><a href="#kilavuzlar/' + topic.id + '"><span class="status">' + esc(topic.specialty) + '</span><h2>' + esc(topic.title) +
     '</h2><span class="status">' + (data ? data.updates.length + ' değişiklik · ' + prettyDay(data.lastUpdated) : 'İçerik bekleniyor') +
@@ -222,7 +224,7 @@ function guides() {
   const savedIds = saved();
   const refreshControl = '<button type="button" id="refresh">İçeriği yenile</button>';
   if (selected) {
-    const entry = available(keys(selected));
+    const entry = guideEntry(selected);
     const data = entry?.data;
     const draft = data?.sources.some((source) => /draft|taslak/i.test([source.name,source.version].join(' ')));
     main.innerHTML = '<p><a href="#kilavuzlar">← Kılavuzlar</a></p>' + title(selected.title, selected.specialty) + '<div class="stack">' +
@@ -235,7 +237,7 @@ function guides() {
       (data.sources.length ? '<section class="card"><h2>Kaynaklar</h2><ul>' + data.sources.map(guideSource).join('') + '</ul></section>' : '') : '') + '</div>';
   } else {
     const tabs = {recent:'Güncel',specialties:'Branşlar',topics:'Konular',saved:'Kaydedilenler'};
-    const sorted = [...topics].sort((a,b) => (available(keys(b))?.data.lastUpdated ?? '').localeCompare(available(keys(a))?.data.lastUpdated ?? ''));
+    const sorted = [...topics].sort((a,b) => (guideEntry(b)?.data.lastUpdated ?? '').localeCompare(guideEntry(a)?.data.lastUpdated ?? ''));
     const visible = guideTab === 'saved' ? sorted.filter((t) => savedIds.has(t.id)) : guideTab === 'topics' ?
       [...topics].sort((a,b) => a.title.localeCompare(b.title,'tr')) : sorted;
     const grouped = [...new Set(topics.map((t) => t.specialty))].map((specialty) =>

@@ -1,5 +1,5 @@
 const cacheName = 'medkit-shell-__BUILD_HASH__';
-const shell = ['./','./app.js','./style.css','./config.js','./calculator.js','./cache.js','./snapshot.json'];
+const shell = ['./','./app.js','./style.css','./config.js','./calculator.js','./cache.js','./guide-content.js','./snapshot.json'];
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(cacheName).then((cache) => cache.addAll(shell)).then(() => self.skipWaiting()));
 });
