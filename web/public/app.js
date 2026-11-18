@@ -2,6 +2,7 @@ import { topics, hospitalURL, universityURL } from './config.js';
 import { cached, read, refresh, write } from './cache.js';
 import { selectGuideEntry, validGuide } from './guide-content.js';
 import { agents, calculate, decimal, sliderDose, sliderLimit, sliderProgress } from './calculator.js';
+import { meanArterialPressure, oxygenationRatio } from './icu.js';
 
 const $ = (id) => document.getElementById(id);
 const main = $('main');
@@ -97,7 +98,53 @@ function home() {
   main.innerHTML = '<section class="hero"><h1>Klinik Araçlar</h1><p>Dahiliye ve yoğun bakım için hesaplayıcılar, kılavuz karşılaştırmaları ve BUÜ yemek menüleri.</p></section>' +
     '<h2 class="section-title">Araçlar</h2><div class="tiles">' + Object.entries(desc).map(([id, description]) =>
       '<a class="tile" href="#' + id + '"><span class="tile-icon">' + icon(labels[id][2]) + '</span><div><h2>' + labels[id][0] +
-      '</h2><p>' + description + '</p></div><span class="arrow">' + arrow + '</span></a>').join('') + '</div>';
+      '</h2><p>' + description + '</p></div><span class="arrow">' + arrow + '</span></a>').join('') +
+    '<a class="tile" href="#araclar/yogun-bakim"><span class="tile-icon">' + icon('M2 12h5l3-7 4 14 3-7h5') +
+    '</span><div><h2>Yoğun Bakım Araçları</h2><p>Ortalama arter basıncı ve PaO₂/FiO₂ oranı</p></div><span class="arrow">' + arrow + '</span></a></div>';
+}
+
+function intensiveCare() {
+  main.innerHTML = '<p><a href="#araclar">← Araçlar</a></p>' + title('Yoğun Bakım Araçları') + `
+    <div class="grid">
+      <section class="card stack" aria-labelledby="map-title">
+        <h2 id="map-title">Ortalama Arter Basıncı (MAP)</h2>
+        <div class="fields">
+          <label class="field">Sistolik basınç (mmHg)<input id="systolic" inputmode="decimal" autocomplete="off"></label>
+          <label class="field">Diyastolik basınç (mmHg)<input id="diastolic" inputmode="decimal" autocomplete="off"></label>
+        </div>
+        <div class="result"><span>Tahmini MAP</span><strong id="map-value" aria-live="polite">—</strong></div>
+        <p class="status" id="map-message" role="status"></p>
+        <p>MAP ≈ diyastolik basınç + (sistolik − diyastolik) ÷ 3.</p>
+        <p class="status"><a href="https://www.ncbi.nlm.nih.gov/books/NBK482189/" target="_blank" rel="noopener noreferrer">Kaynak · StatPearls</a></p>
+      </section>
+      <section class="card stack" aria-labelledby="pf-title">
+        <h2 id="pf-title">PaO₂/FiO₂ Oranı</h2>
+        <div class="fields">
+          <label class="field">Arteriyel PaO₂ (mmHg)<input id="pao2" inputmode="decimal" autocomplete="off"></label>
+          <label class="field">FiO₂ (%)<input id="fio2" inputmode="decimal" autocomplete="off" placeholder="Ör. 40"></label>
+        </div>
+        <div class="result"><span>PaO₂/FiO₂</span><strong id="pf-value" aria-live="polite">—</strong></div>
+        <p class="status" id="pf-message" role="status"></p>
+        <p>PaO₂ ÷ (FiO₂ % ÷ 100). FiO₂ değerini kan gazı örneğinin alındığı andaki oksijen desteğine göre girin.</p>
+        <p class="status"><a href="https://pubmed.ncbi.nlm.nih.gov/23370826/" target="_blank" rel="noopener noreferrer">Kaynak · Villar ve ark.</a></p>
+      </section>
+    </div>`;
+
+  function bind(firstId, secondId, calculateValue, outputId, messageId, invalidMessage) {
+    const first = $(firstId);
+    const second = $(secondId);
+    function update() {
+      const complete = first.value.trim() !== '' && second.value.trim() !== '';
+      const result = complete ? calculateValue(decimal(first.value), decimal(second.value)) : null;
+      $(outputId).textContent = result === null ? '—' : showNumber(result) + ' mmHg';
+      $(messageId).textContent = complete && result === null ? invalidMessage : '';
+    }
+    first.oninput = second.oninput = update;
+  }
+  bind('systolic', 'diastolic', meanArterialPressure, 'map-value', 'map-message',
+    'Pozitif basınç değerleri girin. Sistolik basınç diyastolik basınçtan yüksek olmalı.');
+  bind('pao2', 'fio2', oxygenationRatio, 'pf-value', 'pf-message',
+    'Pozitif bir PaO₂ ve yüzde 21 ile 100 arasında bir FiO₂ girin.');
 }
 
 function calculator() {
@@ -324,12 +371,14 @@ function draw(focus = false) {
   route = next;
   detail = id ?? '';
   const token = ++screen;
-  $('crumb').textContent = labels[route][0];
+  const isIntensiveCare = route === 'araclar' && detail === 'yogun-bakim';
+  $('crumb').textContent = isIntensiveCare ? 'Yoğun Bakım Araçları' : labels[route][0];
   $('nav').querySelectorAll('a').forEach((a) => {
     if (a.hash === '#' + route) a.setAttribute('aria-current','page');
     else a.removeAttribute('aria-current');
   });
-  if (route === 'araclar') home();
+  if (isIntensiveCare) intensiveCare();
+  else if (route === 'araclar') home();
   if (route === 'hesaplayici') calculator();
   if (route === 'kilavuzlar') {
     guides();

@@ -5,6 +5,19 @@ import {parseUniversity} from '../worker/university.js';
 import {cached,refresh} from '../public/cache.js';
 import {topics} from '../public/config.js';
 import {selectGuideEntry,validGuide} from '../public/guide-content.js';
+import {meanArterialPressure,oxygenationRatio} from '../public/icu.js';
+
+test('ICU calculators handle percentage conversion and invalid values', () => {
+  assert.equal(meanArterialPressure(120, 60), 80);
+  assert.equal(meanArterialPressure(60, 120), null);
+  assert.equal(meanArterialPressure(120, 0), null);
+  assert.equal(meanArterialPressure(NaN, 60), null);
+  assert.equal(oxygenationRatio(80, 40), 200);
+  assert.equal(oxygenationRatio(90, 100), 90);
+  assert.equal(oxygenationRatio(80, 0.4), null);
+  assert.equal(oxygenationRatio(80, 101), null);
+  assert.equal(oxygenationRatio(0, 40), null);
+});
 
 test('converts both directions for all Swift presets and accepts decimal comma', () => {
   for (const agent of agents) {
