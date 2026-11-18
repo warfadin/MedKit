@@ -26,8 +26,9 @@ button:disabled { opacity:.65; cursor:wait; }
 :focus-visible { outline:3px solid var(--blue); outline-offset:3px; }
 [hidden] { display:none!important; }
 .layout { display:grid; grid-template-columns:232px minmax(0,1fr); min-height:100vh; }
-.sidebar { background:var(--panel); border-right:1px solid var(--line); padding:27px 17px; position:sticky; top:0; height:100vh; display:flex; flex-direction:column; }
+.sidebar { background:var(--panel); border-right:1px solid var(--line); padding:27px 17px; position:sticky; top:0; height:100vh; display:flex; flex-direction:column; overflow-y:auto; }
 .brand { display:flex; align-items:center; gap:11px; margin:0 6px 35px; text-decoration:none; color:var(--ink); font-size:23px; font-weight:780; letter-spacing:-.055em; line-height:1.1; }
+.mobile-brand { display:none; }
 .brand small { display:block; color:var(--muted); font-size:12px; letter-spacing:0; font-weight:550; margin-top:4px; }
 .brand-mark,.tile-icon { display:grid; place-items:center; background:var(--soft); color:var(--blue); border-radius:13px; width:43px; height:43px; flex:none; }
 .brand-mark { background:#245dcc; color:white; font-size:32px; }
@@ -86,18 +87,39 @@ ul { margin:.3rem 0 .6rem; padding-inline-start:1.25rem; }
 .skip:focus { position:fixed; left:8px; top:8px; z-index:5; background:var(--panel); padding:8px; }
 @media(max-width:940px) { .tiles { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:720px) {
+  :root {
+    --left-gutter:max(14px,env(safe-area-inset-left));
+    --right-gutter:max(14px,env(safe-area-inset-right));
+    --nav-clearance:calc(76px + env(safe-area-inset-bottom));
+    scroll-padding-bottom:var(--nav-clearance);
+  }
   .layout { display:block; }
-  .sidebar { height:auto; border:0; padding:0; position:static; }
-  .brand { position:absolute; top:13px; left:14px; margin:0; }
-  .brand small,.side-foot,#crumb { display:none; }
+  .sidebar { height:auto; border:0; padding:0; position:static; overflow:visible; }
+  .sidebar .brand,.side-foot,#crumb { display:none; }
+  .mobile-brand { display:flex; margin:0; min-height:44px; }
   .brand-mark { width:39px; height:39px; }
-  .topbar { height:65px; justify-content:flex-end; padding:0 12px 0 155px; }
-  nav { position:fixed; z-index:2; inset:auto 0 0; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px; background:var(--panel); border-top:1px solid var(--line); padding:5px 4px calc(5px + env(safe-area-inset-bottom)); }
+  .topbar {
+    height:auto; min-height:65px; flex-wrap:wrap;
+    padding-block:calc(10px + env(safe-area-inset-top)) 10px;
+    padding-inline:var(--left-gutter) var(--right-gutter);
+  }
+  .utilities { flex-wrap:wrap; }
+  nav {
+    position:fixed; z-index:2; inset:auto 0 0; grid-template-columns:repeat(4,minmax(0,1fr)); gap:1px;
+    background:var(--panel); border-top:1px solid var(--line);
+    padding-block:5px calc(5px + env(safe-area-inset-bottom));
+    padding-inline:max(4px,env(safe-area-inset-left)) max(4px,env(safe-area-inset-right));
+  }
   nav a { flex-direction:column; justify-content:center; text-align:center; padding:4px 1px; gap:3px; font-size:clamp(10px,2.75vw,12px); }
-  main,footer { padding:22px 14px; }
-  footer { padding-bottom:calc(76px + env(safe-area-inset-bottom)); }
+  nav a span { max-width:100%; overflow-wrap:anywhere; }
+  main,footer { padding-block:22px; padding-inline:var(--left-gutter) var(--right-gutter); }
+  footer { padding-bottom:var(--nav-clearance); flex-wrap:wrap; }
+  #toast {
+    left:var(--left-gutter); right:var(--right-gutter); bottom:var(--nav-clearance);
+    width:fit-content; max-width:none; margin-left:auto;
+  }
   .hero { min-height:174px; }
-  .grid { grid-template-columns:1fr; }
+  .grid { grid-template-columns:minmax(0,1fr); }
 }
 @media(max-width:480px) {
   .tiles { grid-template-columns:1fr; gap:9px; }
@@ -105,4 +127,7 @@ ul { margin:.3rem 0 .6rem; padding-inline-start:1.25rem; }
   .tile-icon,.tile h2,.tile p,.arrow { margin:0; align-self:center; }
   .tile h2 { font-size:1rem; }
   .tile p { font-size:.82rem; }
+}
+@media(max-width:360px) {
+  .fields { grid-template-columns:minmax(0,1fr); }
 }
