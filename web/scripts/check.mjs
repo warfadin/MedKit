@@ -6,6 +6,22 @@ import {cached,refresh} from '../public/cache.js';
 import {topics} from '../public/config.js';
 import {selectGuideEntry,validGuide} from '../public/guide-content.js';
 import {meanArterialPressure,oxygenationRatio} from '../public/icu.js';
+import {estimatedGfr} from '../public/renal.js';
+
+test('2021 creatinine eGFR matches both equation branches and both units', () => {
+  for (const [age,sex,creatinine,expected] of [
+    [60,'male',1.2,69.2311275675], [50,'female',0.6,109.2830113378],
+    [75,'female',2,25.5726032537], [40,'male',0.8,114.7350482313]
+  ]) {
+    assert.ok(Math.abs(estimatedGfr({age,sex,creatinine,unit:'mg/dL'}) - expected) < 1e-8);
+    assert.ok(Math.abs(estimatedGfr({age,sex,creatinine:creatinine * 88.4,unit:'µmol/L'}) - expected) < 1e-8);
+  }
+  const example = {age:18,sex:'female',creatinine:0.7,unit:'mg/dL'};
+  assert.ok(estimatedGfr(example) > 0);
+  for (const invalid of [{age:17},{age:18.5},{sex:''},{creatinine:0},{creatinine:Infinity},{unit:'mmol/L'}]) {
+    assert.equal(estimatedGfr({...example,...invalid}),null);
+  }
+});
 
 test('ICU calculators handle percentage conversion and invalid values', () => {
   assert.equal(meanArterialPressure(120, 60), 80);

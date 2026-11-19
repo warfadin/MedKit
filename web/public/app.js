@@ -3,6 +3,7 @@ import { cached, read, refresh, write } from './cache.js';
 import { selectGuideEntry, validGuide } from './guide-content.js';
 import { agents, calculate, decimal, sliderDose, sliderLimit, sliderProgress } from './calculator.js';
 import { meanArterialPressure, oxygenationRatio } from './icu.js';
+import { estimatedGfr } from './renal.js';
 
 const $ = (id) => document.getElementById(id);
 const main = $('main');
@@ -16,6 +17,17 @@ const desc = {
   hesaplayici: 'Doz, infüzyon hızı ve karışım konsantrasyonu',
   kilavuzlar: 'Klinik değişiklikler, karşılaştırmalar ve kaynaklar',
   menuler: 'BUÜ Hastane, Çamlık ve Personel menüleri'
+};
+const clinicalTools = {
+  'yogun-bakim': {
+    title: 'Yoğun Bakım Araçları', description: 'Ortalama arter basıncı ve PaO₂/FiO₂ oranı',
+    path: 'M2 12h5l3-7 4 14 3-7h5', render: intensiveCare
+  },
+  nefroloji: {
+    title: 'Nefroloji Araçları', description: 'Kreatinin temelli eGFR · CKD-EPI 2021',
+    path: 'M9 4C5 2 3 6 3 10s2 7 5 7c2 0 3-2 3-4V9c0-2-1-4-2-5z M15 4c4-2 6 2 6 6s-2 7-5 7c-2 0-3-2-3-4V9c0-2 1-4 2-5z M9 14v6 M15 14v6',
+    render: nephrology
+  }
 };
 const importance = {
   practiceChanging:'Pratiği değiştirebilir', high:'Çok önemli', important:'Çok önemli',
@@ -95,12 +107,59 @@ for (const event of ['online','offline']) window.addEventListener(event, () => {
 });
 
 function home() {
+  const tiles = [
+    ...Object.entries(desc).map(([id, description]) => [id, labels[id][0], description, labels[id][2]]),
+    ...Object.entries(clinicalTools).map(([id, tool]) => ['araclar/' + id, tool.title, tool.description, tool.path])
+  ];
   main.innerHTML = '<section class="hero"><h1>Klinik Araçlar</h1><p>Dahiliye ve yoğun bakım için hesaplayıcılar, kılavuz karşılaştırmaları ve BUÜ yemek menüleri.</p></section>' +
-    '<h2 class="section-title">Araçlar</h2><div class="tiles">' + Object.entries(desc).map(([id, description]) =>
-      '<a class="tile" href="#' + id + '"><span class="tile-icon">' + icon(labels[id][2]) + '</span><div><h2>' + labels[id][0] +
-      '</h2><p>' + description + '</p></div><span class="arrow">' + arrow + '</span></a>').join('') +
-    '<a class="tile" href="#araclar/yogun-bakim"><span class="tile-icon">' + icon('M2 12h5l3-7 4 14 3-7h5') +
-    '</span><div><h2>Yoğun Bakım Araçları</h2><p>Ortalama arter basıncı ve PaO₂/FiO₂ oranı</p></div><span class="arrow">' + arrow + '</span></a></div>';
+    '<h2 class="section-title">Araçlar</h2><div class="tiles">' + tiles.map(([id, name, description, path]) =>
+      '<a class="tile" href="#' + id + '"><span class="tile-icon">' + icon(path) + '</span><div><h2>' + name +
+      '</h2><p>' + description + '</p></div><span class="arrow">' + arrow + '</span></a>').join('') + '</div>';
+}
+
+function nephrology() {
+  main.innerHTML = '<p><a href="#araclar">← Araçlar</a></p>' + title(clinicalTools.nefroloji.title) + `
+    <section class="card stack" aria-labelledby="egfr-title">
+      <h2 id="egfr-title">Tahmini Glomerüler Filtrasyon Hızı (eGFR)</h2>
+      <p>CKD-EPI 2021 kreatinin denklemi · 18 yaş ve üzeri</p>
+      <div class="fields">
+        <label class="field">Yaş (yıl)<input id="egfr-age" inputmode="numeric" autocomplete="off"></label>
+        <label class="field">Cinsiyet<select id="egfr-sex">
+          <option value="">Seçin</option><option value="female">Kadın</option><option value="male">Erkek</option>
+        </select></label>
+        <label class="field">Kreatinin birimi<select id="egfr-unit">
+          <option value="mg/dL">mg/dL</option><option value="µmol/L">µmol/L</option>
+        </select></label>
+        <label class="field">Serum kreatinin<input id="egfr-creatinine" inputmode="decimal" autocomplete="off"></label>
+      </div>
+      <div class="result"><span>eGFR</span><strong id="egfr-value" aria-live="polite">—</strong></div>
+      <p class="status" id="egfr-message" role="status"></p>
+      <p class="note">Kreatinin hızla değişiyorsa bu tahmin güvenilir değildir. Kronik böbrek hastalığı tanısında sonucu süre ve diğer böbrek hasarı göstergeleriyle birlikte değerlendirin.</p>
+      <p class="status"><a href="https://pubmed.ncbi.nlm.nih.gov/34554658/" target="_blank" rel="noopener noreferrer">Inker ve ark. · 2021</a> ·
+        <a href="https://www.niddk.nih.gov/research-funding/research-programs/kidney-clinical-research-epidemiology/laboratory/glomerular-filtration-rate-equations/adults" target="_blank" rel="noopener noreferrer">NIDDK · Denklem ve birimler</a> ·
+        <a href="https://kdigo.org/guidelines/ckd-evaluation-and-management/" target="_blank" rel="noopener noreferrer">KDIGO · 2024 KBH kılavuzu</a></p>
+    </section>`;
+
+  const age = $('egfr-age');
+  const sex = $('egfr-sex');
+  const creatinine = $('egfr-creatinine');
+  const unit = $('egfr-unit');
+  const format = new Intl.NumberFormat('tr-TR', {maximumFractionDigits: 1});
+  function update() {
+    const complete = age.value.trim() !== '' && sex.value !== '' && creatinine.value.trim() !== '';
+    const result = complete ? estimatedGfr({
+      age: decimal(age.value), sex: sex.value, creatinine: decimal(creatinine.value), unit: unit.value
+    }) : null;
+    $('egfr-value').textContent = result === null ? '—' : format.format(result) + ' mL/dk/1,73 m²';
+    $('egfr-message').textContent = complete && result === null ? '18 veya üzeri tam yaş ve pozitif kreatinin girin.' : '';
+  }
+  age.oninput = creatinine.oninput = sex.onchange = update;
+  unit.onchange = () => {
+    const hadValue = creatinine.value.trim() !== '';
+    creatinine.value = '';
+    update();
+    if (hadValue) $('egfr-message').textContent = 'Kreatinin değerini seçtiğiniz birimle tekrar girin.';
+  };
 }
 
 function intensiveCare() {
@@ -371,13 +430,13 @@ function draw(focus = false) {
   route = next;
   detail = id ?? '';
   const token = ++screen;
-  const isIntensiveCare = route === 'araclar' && detail === 'yogun-bakim';
-  $('crumb').textContent = isIntensiveCare ? 'Yoğun Bakım Araçları' : labels[route][0];
+  const tool = route === 'araclar' && Object.hasOwn(clinicalTools, detail) ? clinicalTools[detail] : null;
+  $('crumb').textContent = tool?.title ?? labels[route][0];
   $('nav').querySelectorAll('a').forEach((a) => {
     if (a.hash === '#' + route) a.setAttribute('aria-current','page');
     else a.removeAttribute('aria-current');
   });
-  if (isIntensiveCare) intensiveCare();
+  if (tool) tool.render();
   else if (route === 'araclar') home();
   if (route === 'hesaplayici') calculator();
   if (route === 'kilavuzlar') {
