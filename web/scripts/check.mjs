@@ -6,7 +6,21 @@ import {cached,refresh} from '../public/cache.js';
 import {topics} from '../public/config.js';
 import {selectGuideEntry,validGuide} from '../public/guide-content.js';
 import {meanArterialPressure,oxygenationRatio} from '../public/icu.js';
-import {estimatedGfr} from '../public/renal.js';
+import {estimatedGfr,urineAlbuminCreatinineRatio} from '../public/renal.js';
+
+test('spot uACR converts concentrations and applies the KDIGO 2024 mg/g boundaries', () => {
+  const sample = {albumin:30,albuminUnit:'mg/L',creatinine:100,creatinineUnit:'mg/dL'};
+  const calculate = (overrides) => urineAlbuminCreatinineRatio({...sample,...overrides});
+  assert.deepEqual(calculate(),{ratio:30,category:'A2'});
+  assert.deepEqual(calculate({albumin:3,albuminUnit:'mg/dL',creatinine:1,creatinineUnit:'g/L'}),{ratio:30,category:'A2'});
+  assert.deepEqual(calculate({albumin:29.99}),{ratio:29.99,category:'A1'});
+  assert.deepEqual(calculate({albumin:300}),{ratio:300,category:'A2'});
+  assert.deepEqual(calculate({albumin:300.01}),{ratio:300.01,category:'A3'});
+  assert.deepEqual(calculate({albumin:0}),{ratio:0,category:'A1'});
+  for (const invalid of [{albumin:-1},{albumin:NaN},{albuminUnit:'g/L'},{creatinine:0},{creatinine:Infinity},{creatinineUnit:'mg/L'}]) {
+    assert.equal(calculate(invalid),null);
+  }
+});
 
 test('2021 creatinine eGFR matches both equation branches and both units', () => {
   for (const [age,sex,creatinine,expected] of [

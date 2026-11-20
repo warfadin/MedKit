@@ -3,7 +3,7 @@ import { cached, read, refresh, write } from './cache.js';
 import { selectGuideEntry, validGuide } from './guide-content.js';
 import { agents, calculate, decimal, sliderDose, sliderLimit, sliderProgress } from './calculator.js';
 import { meanArterialPressure, oxygenationRatio } from './icu.js';
-import { estimatedGfr } from './renal.js';
+import { estimatedGfr, urineAlbuminCreatinineRatio } from './renal.js';
 
 const $ = (id) => document.getElementById(id);
 const main = $('main');
@@ -24,7 +24,7 @@ const clinicalTools = {
     path: 'M2 12h5l3-7 4 14 3-7h5', render: intensiveCare
   },
   nefroloji: {
-    title: 'Nefroloji Araçları', description: 'Kreatinin temelli eGFR · CKD-EPI 2021',
+    title: 'Nefroloji Araçları', description: 'CKD-EPI 2021 eGFR ve idrar albümin/kreatinin oranı',
     path: 'M9 4C5 2 3 6 3 10s2 7 5 7c2 0 3-2 3-4V9c0-2-1-4-2-5z M15 4c4-2 6 2 6 6s-2 7-5 7c-2 0-3-2-3-4V9c0-2 1-4 2-5z M9 14v6 M15 14v6',
     render: nephrology
   }
@@ -119,6 +119,7 @@ function home() {
 
 function nephrology() {
   main.innerHTML = '<p><a href="#araclar">← Araçlar</a></p>' + title(clinicalTools.nefroloji.title) + `
+    <div class="grid">
     <section class="card stack" aria-labelledby="egfr-title">
       <h2 id="egfr-title">Tahmini Glomerüler Filtrasyon Hızı (eGFR)</h2>
       <p>CKD-EPI 2021 kreatinin denklemi · 18 yaş ve üzeri</p>
@@ -138,7 +139,27 @@ function nephrology() {
       <p class="status"><a href="https://pubmed.ncbi.nlm.nih.gov/34554658/" target="_blank" rel="noopener noreferrer">Inker ve ark. · 2021</a> ·
         <a href="https://www.niddk.nih.gov/research-funding/research-programs/kidney-clinical-research-epidemiology/laboratory/glomerular-filtration-rate-equations/adults" target="_blank" rel="noopener noreferrer">NIDDK · Denklem ve birimler</a> ·
         <a href="https://kdigo.org/guidelines/ckd-evaluation-and-management/" target="_blank" rel="noopener noreferrer">KDIGO · 2024 KBH kılavuzu</a></p>
-    </section>`;
+    </section>
+    <section class="card stack" aria-labelledby="uacr-title">
+      <h2 id="uacr-title">İdrar Albümin/Kreatinin Oranı (uACR)</h2>
+      <p>İki değeri aynı spot idrar örneğinden girin.</p>
+      <div class="fields">
+        <label class="field">Albümin birimi<select id="uacr-albumin-unit">
+          <option value="mg/L">mg/L</option><option value="mg/dL">mg/dL</option>
+        </select></label>
+        <label class="field">İdrar albümini<input id="uacr-albumin" inputmode="decimal" autocomplete="off"></label>
+        <label class="field">Kreatinin birimi<select id="uacr-creatinine-unit">
+          <option value="mg/dL">mg/dL</option><option value="g/L">g/L</option>
+        </select></label>
+        <label class="field">İdrar kreatinini<input id="uacr-creatinine" inputmode="decimal" autocomplete="off"></label>
+      </div>
+      <div class="result" aria-live="polite"><span>uACR</span><strong id="uacr-value">—</strong><span id="uacr-category"></span></div>
+      <p class="status" id="uacr-message" role="status"></p>
+      <p class="note">İlk sabah idrarı tercih edilir. Tek bir yüksek sonuçla kroniklik varsaymayın.</p>
+      <p class="status"><a href="https://www.niddk.nih.gov/health-information/professionals/advanced-search/quick-reference-uacr-gfr" target="_blank" rel="noopener noreferrer">NIDDK · Hesaplama</a> ·
+        <a href="https://kdigo.org/guidelines/ckd-evaluation-and-management/" target="_blank" rel="noopener noreferrer">KDIGO · 2024 albüminüri kategorileri</a></p>
+    </section>
+    </div>`;
 
   const age = $('egfr-age');
   const sex = $('egfr-sex');
@@ -160,6 +181,34 @@ function nephrology() {
     update();
     if (hadValue) $('egfr-message').textContent = 'Kreatinin değerini seçtiğiniz birimle tekrar girin.';
   };
+  bindUrineAlbuminRatio();
+}
+
+function bindUrineAlbuminRatio() {
+  const albumin = $('uacr-albumin');
+  const creatinine = $('uacr-creatinine');
+  const albuminUnit = $('uacr-albumin-unit');
+  const creatinineUnit = $('uacr-creatinine-unit');
+  const categories = {A1:'Normal veya hafif artmış', A2:'Orta derecede artmış', A3:'Belirgin artmış'};
+  function update() {
+    const complete = albumin.value.trim() !== '' && creatinine.value.trim() !== '';
+    const result = complete ? urineAlbuminCreatinineRatio({
+      albumin: decimal(albumin.value), albuminUnit: albuminUnit.value,
+      creatinine: decimal(creatinine.value), creatinineUnit: creatinineUnit.value
+    }) : null;
+    $('uacr-value').textContent = result ? showNumber(result.ratio) + ' mg/g' : '—';
+    $('uacr-category').textContent = result ? result.category + ' · ' + categories[result.category] : '';
+    $('uacr-message').textContent = complete && !result ? 'Sayısal albümin değeri ve pozitif kreatinin değeri girin.' : '';
+  }
+  albumin.oninput = creatinine.oninput = update;
+  for (const [unit, input] of [[albuminUnit, albumin], [creatinineUnit, creatinine]]) {
+    unit.onchange = () => {
+      const hadValue = input.value.trim() !== '';
+      input.value = '';
+      update();
+      if (hadValue) $('uacr-message').textContent = 'Değeri seçtiğiniz birimle tekrar girin.';
+    };
+  }
 }
 
 function intensiveCare() {
