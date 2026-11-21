@@ -29,3 +29,17 @@ export function urineAlbuminCreatinineRatio({ albumin, albuminUnit, creatinine, 
   const category = ratio < 30 ? 'A1' : ratio <= 300 ? 'A2' : 'A3';
   return { ratio, category };
 }
+
+export function serumOsmolality({ sodium, glucose, glucoseUnit, urea, ureaUnit }) {
+  if (!Number.isFinite(sodium) || sodium <= 0 || !Number.isFinite(glucose) || glucose <= 0) return null;
+  if (glucoseUnit !== 'mg/dL' && glucoseUnit !== 'mmol/L') return null;
+
+  // ADA/EASD 2024 consensus uses 2 × sodium plus glucose, with solutes in mmol/L.
+  const tonicity = 2 * sodium + glucose * (glucoseUnit === 'mg/dL' ? 0.05551 : 1);
+  if (!Number.isFinite(tonicity)) return null;
+  if (urea === undefined) return { tonicity, total: null };
+  const ureaFactors = { 'urea-mg': 0.1665, 'bun-mg': 0.357, 'urea-mmol': 1 };
+  if (!Number.isFinite(urea) || urea < 0 || !Object.hasOwn(ureaFactors, ureaUnit)) return null;
+  const total = tonicity + urea * ureaFactors[ureaUnit];
+  return Number.isFinite(total) ? { tonicity, total } : null;
+}

@@ -3,7 +3,7 @@ import { cached, read, refresh, write } from './cache.js';
 import { selectGuideEntry, validGuide } from './guide-content.js';
 import { agents, calculate, decimal, sliderDose, sliderLimit, sliderProgress } from './calculator.js';
 import { meanArterialPressure, oxygenationRatio } from './icu.js';
-import { estimatedGfr, urineAlbuminCreatinineRatio } from './renal.js';
+import { estimatedGfr, serumOsmolality, urineAlbuminCreatinineRatio } from './renal.js';
 
 const $ = (id) => document.getElementById(id);
 const main = $('main');
@@ -24,7 +24,7 @@ const clinicalTools = {
     path: 'M2 12h5l3-7 4 14 3-7h5', render: intensiveCare
   },
   nefroloji: {
-    title: 'Nefroloji Araçları', description: 'CKD-EPI 2021 eGFR ve idrar albümin/kreatinin oranı',
+    title: 'Nefroloji Araçları', description: 'eGFR, idrar albümin/kreatinin oranı ve serum osmolalitesi',
     path: 'M9 4C5 2 3 6 3 10s2 7 5 7c2 0 3-2 3-4V9c0-2-1-4-2-5z M15 4c4-2 6 2 6 6s-2 7-5 7c-2 0-3-2-3-4V9c0-2 1-4 2-5z M9 14v6 M15 14v6',
     render: nephrology
   }
@@ -159,6 +159,27 @@ function nephrology() {
       <p class="status"><a href="https://www.niddk.nih.gov/health-information/professionals/advanced-search/quick-reference-uacr-gfr" target="_blank" rel="noopener noreferrer">NIDDK · Hesaplama</a> ·
         <a href="https://kdigo.org/guidelines/ckd-evaluation-and-management/" target="_blank" rel="noopener noreferrer">KDIGO · 2024 albüminüri kategorileri</a></p>
     </section>
+    <section class="card stack" aria-labelledby="osm-title">
+      <h2 id="osm-title">Serum Osmolalitesi ve Tonisite</h2>
+      <div class="fields">
+        <label class="field">Ölçülen serum sodyumu (mmol/L)<input id="osm-sodium" inputmode="decimal" autocomplete="off"></label>
+        <label class="field">Glukoz birimi<select id="osm-glucose-unit">
+          <option value="mg/dL">mg/dL</option><option value="mmol/L">mmol/L</option>
+        </select></label>
+        <label class="field">Glukoz<input id="osm-glucose" inputmode="decimal" autocomplete="off"></label>
+        <label class="field">Üre veya BUN birimi<select id="osm-urea-unit">
+          <option value="urea-mg">Üre (mg/dL)</option><option value="urea-mmol">Üre (mmol/L)</option><option value="bun-mg">BUN (mg/dL)</option>
+        </select></label>
+        <label class="field">Üre veya BUN (isteğe bağlı)<input id="osm-urea" inputmode="decimal" autocomplete="off"></label>
+      </div>
+      <div class="result" aria-live="polite">
+        <span>Efektif osmolalite (tonisite)</span><strong id="osm-tonicity">—</strong>
+        <span>Hesaplanan toplam osmolalite</span><strong id="osm-total">—</strong>
+      </div>
+      <p class="status" id="osm-message" role="status"></p>
+      <p>Tonisite = 2 × Na + glukoz. Toplam osmolalite için üre eklenir. Formülde tüm girdiler mmol/L cinsindendir.</p>
+      <p class="status"><a href="https://doi.org/10.2337/dci24-0032" target="_blank" rel="noopener noreferrer">ADA/EASD ve ark. · 2024 konsensüsü</a></p>
+    </section>
     </div>`;
 
   const age = $('egfr-age');
@@ -182,6 +203,42 @@ function nephrology() {
     if (hadValue) $('egfr-message').textContent = 'Kreatinin değerini seçtiğiniz birimle tekrar girin.';
   };
   bindUrineAlbuminRatio();
+  bindSerumOsmolality();
+}
+
+function bindSerumOsmolality() {
+  const sodium = $('osm-sodium');
+  const glucose = $('osm-glucose');
+  const urea = $('osm-urea');
+  const glucoseUnit = $('osm-glucose-unit');
+  const ureaUnit = $('osm-urea-unit');
+  const format = new Intl.NumberFormat('tr-TR', {maximumFractionDigits: 1});
+  const output = (value) => value == null ? '—' : format.format(value) + ' mOsm/kg';
+
+  function update() {
+    const complete = sodium.value.trim() !== '' && glucose.value.trim() !== '';
+    const hasUrea = urea.value.trim() !== '';
+    const values = { sodium: decimal(sodium.value), glucose: decimal(glucose.value), glucoseUnit: glucoseUnit.value };
+    const effective = complete ? serumOsmolality(values) : null;
+    const total = effective && hasUrea ? serumOsmolality({
+      ...values, urea: decimal(urea.value), ureaUnit: ureaUnit.value
+    }) : null;
+    $('osm-tonicity').textContent = output(effective?.tonicity);
+    $('osm-total').textContent = output(total?.total);
+    let message = '';
+    if (complete && !effective) message = 'Pozitif sodyum ve glukoz değerleri girin.';
+    if (effective && hasUrea && !total) message = 'Üre veya BUN için sıfır ya da pozitif bir sayı girin.';
+    $('osm-message').textContent = message;
+  }
+  sodium.oninput = glucose.oninput = urea.oninput = update;
+  for (const [unit, input] of [[glucoseUnit, glucose], [ureaUnit, urea]]) {
+    unit.onchange = () => {
+      const hadValue = input.value.trim() !== '';
+      input.value = '';
+      update();
+      if (hadValue) $('osm-message').textContent = 'Değeri seçtiğiniz birimle tekrar girin.';
+    };
+  }
 }
 
 function bindUrineAlbuminRatio() {

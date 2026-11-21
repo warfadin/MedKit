@@ -6,7 +6,20 @@ import {cached,refresh} from '../public/cache.js';
 import {topics} from '../public/config.js';
 import {selectGuideEntry,validGuide} from '../public/guide-content.js';
 import {meanArterialPressure,oxygenationRatio} from '../public/icu.js';
-import {estimatedGfr,urineAlbuminCreatinineRatio} from '../public/renal.js';
+import {estimatedGfr,serumOsmolality,urineAlbuminCreatinineRatio} from '../public/renal.js';
+
+test('serum osmolality keeps tonicity independent of urea and distinguishes laboratory units', () => {
+  const values = {sodium:125,glucose:5,glucoseUnit:'mmol/L'};
+  const calculate = (overrides) => serumOsmolality({...values,...overrides});
+  assert.deepEqual(calculate(),{tonicity:255,total:null});
+  assert.deepEqual(calculate({urea:10,ureaUnit:'urea-mmol'}),{tonicity:255,total:265});
+  assert.deepEqual(calculate({urea:60,ureaUnit:'urea-mg'}),{tonicity:255,total:264.99});
+  assert.deepEqual(calculate({urea:28,ureaUnit:'bun-mg'}),{tonicity:255,total:264.996});
+  assert.equal(calculate({glucose:180,glucoseUnit:'mg/dL'}).tonicity,259.9918);
+  for (const invalid of [{sodium:0},{glucose:NaN},{glucoseUnit:'g/L'},{urea:-1,ureaUnit:'bun-mg'},{urea:1,ureaUnit:'mg/dL'}]) {
+    assert.equal(calculate(invalid),null);
+  }
+});
 
 test('spot uACR converts concentrations and applies the KDIGO 2024 mg/g boundaries', () => {
   const sample = {albumin:30,albuminUnit:'mg/L',creatinine:100,creatinineUnit:'mg/dL'};
