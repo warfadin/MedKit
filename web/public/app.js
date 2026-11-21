@@ -4,6 +4,7 @@ import { selectGuideEntry, validGuide } from './guide-content.js';
 import { agents, calculate, decimal, sliderDose, sliderLimit, sliderProgress } from './calculator.js';
 import { meanArterialPressure, oxygenationRatio } from './icu.js';
 import { estimatedGfr, serumOsmolality, urineAlbuminCreatinineRatio } from './renal.js';
+import { hyponatremiaView } from './hyponatremia-view.js';
 
 const $ = (id) => document.getElementById(id);
 const main = $('main');
@@ -19,6 +20,11 @@ const desc = {
   menuler: 'BUÜ Hastane, Çamlık ve Personel menüleri'
 };
 const clinicalTools = {
+  hiponatremi: {
+    title: 'Hiponatremi ve SIADH', description: 'Serum ve idrar bulguları, volüm durumu ve dışlama kriterleri',
+    path: 'M12 3C8 9 5 12 5 16a7 7 0 0 0 14 0c0-4-3-7-7-13z',
+    render: () => hyponatremiaView(main)
+  },
   'yogun-bakim': {
     title: 'Yoğun Bakım Araçları', description: 'Ortalama arter basıncı ve PaO₂/FiO₂ oranı',
     path: 'M2 12h5l3-7 4 14 3-7h5', render: intensiveCare

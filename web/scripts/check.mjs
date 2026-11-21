@@ -7,6 +7,24 @@ import {topics} from '../public/config.js';
 import {selectGuideEntry,validGuide} from '../public/guide-content.js';
 import {meanArterialPressure,oxygenationRatio} from '../public/icu.js';
 import {estimatedGfr,serumOsmolality,urineAlbuminCreatinineRatio} from '../public/renal.js';
+import {assessHyponatremia} from '../public/hyponatremia.js';
+
+test('SIAD assessment requires all exclusions and handles diagnostic boundaries', () => {
+  const base = {sodium:125,serumOsm:265,urineOsm:363,urineSodium:36};
+  assert.equal(assessHyponatremia(base),'incomplete');
+  const complete = {...base,volume:'normal',adrenal:'yes',thyroid:'yes',renal:'yes',diuretics:'yes',intake:'yes'};
+  assert.equal(assessHyponatremia(complete),'siadh-compatible');
+  for (const key of ['adrenal','thyroid','renal','diuretics','intake']) {
+    assert.equal(assessHyponatremia({...complete,[key]:'no'}),'confounded');
+    assert.equal(assessHyponatremia({...complete,[key]:''}),'incomplete');
+  }
+  assert.equal(assessHyponatremia({...complete,sodium:135}),'no-hyponatremia');
+  assert.equal(assessHyponatremia({...complete,serumOsm:275}),'check-tonicity');
+  assert.equal(assessHyponatremia({...complete,urineOsm:100}),'dilute-urine');
+  assert.equal(assessHyponatremia({...complete,urineSodium:30}),'low-effective-volume');
+  assert.equal(assessHyponatremia({...complete,volume:'high'}),'volume-disorder');
+  assert.equal(assessHyponatremia({...base,urineSodium:NaN}),null);
+});
 
 test('serum osmolality keeps tonicity independent of urea and distinguishes laboratory units', () => {
   const values = {sodium:125,glucose:5,glucoseUnit:'mmol/L'};
