@@ -8,6 +8,25 @@ import {selectGuideEntry,validGuide} from '../public/guide-content.js';
 import {meanArterialPressure,oxygenationRatio} from '../public/icu.js';
 import {estimatedGfr,serumOsmolality,urineAlbuminCreatinineRatio} from '../public/renal.js';
 import {assessHyponatremia} from '../public/hyponatremia.js';
+import {watchAppUpdates} from '../public/updates.js';
+
+test('app update notice waits for a replacement controller and ignores initial installation', () => {
+  const workers = new EventTarget();
+  let notices = 0;
+  workers.controller = null;
+  watchAppUpdates(workers, () => { notices++; });
+  workers.controller = {};
+  workers.dispatchEvent(new Event('controllerchange'));
+  assert.equal(notices, 0);
+  workers.controller = {};
+  workers.dispatchEvent(new Event('controllerchange'));
+  assert.equal(notices, 1);
+  workers.dispatchEvent(new Event('controllerchange'));
+  assert.equal(notices, 1);
+  workers.controller = null;
+  workers.dispatchEvent(new Event('controllerchange'));
+  assert.equal(notices, 1);
+});
 
 test('SIAD assessment requires all exclusions and handles diagnostic boundaries', () => {
   const base = {sodium:125,serumOsm:265,urineOsm:363,urineSodium:36};

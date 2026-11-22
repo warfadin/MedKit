@@ -43,6 +43,8 @@ body[data-offline] .dot { background:#dba044; }
 .workspace { min-width:0; width:100%; }
 .topbar { height:72px; display:flex; align-items:center; justify-content:space-between; padding:0 clamp(20px,5vw,70px); border-bottom:1px solid var(--line); background:var(--panel); font-size:14px; font-weight:650; gap:8px; }
 .utilities { display:flex; align-items:center; gap:8px; }
+.app-update { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px; margin:16px; padding:14px; border:1px solid var(--blue); border-radius:12px; background:var(--soft); }
+.app-update p { margin:0; flex:1 1 240px; }
 main,footer { max-width:1220px; margin:0 auto; padding:32px clamp(20px,5vw,70px); }
 footer { color:var(--muted); font-size:13px; display:flex; justify-content:space-between; gap:12px; padding-top:8px; }
 .hero { background:var(--hero); color:white; border-radius:22px; padding:clamp(23px,5vw,52px); min-height:233px; display:flex; justify-content:center; flex-direction:column; position:relative; isolation:isolate; overflow:hidden; }

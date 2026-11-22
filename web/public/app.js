@@ -5,6 +5,7 @@ import { agents, calculate, decimal, sliderDose, sliderLimit, sliderProgress } f
 import { meanArterialPressure, oxygenationRatio } from './icu.js';
 import { estimatedGfr, serumOsmolality, urineAlbuminCreatinineRatio } from './renal.js';
 import { hyponatremiaView } from './hyponatremia-view.js';
+import { watchAppUpdates } from './updates.js';
 
 const $ = (id) => document.getElementById(id);
 const main = $('main');
@@ -86,6 +87,10 @@ function updateConnection() {
 }
 let offlineReady = false;
 if ('serviceWorker' in navigator) {
+  watchAppUpdates(navigator.serviceWorker, () => {
+    $('app-update').hidden = false;
+  });
+  $('app-reload').onclick = () => location.reload();
   navigator.serviceWorker.register('./sw.js').then(() => navigator.serviceWorker.ready).then(() => {
     offlineReady = true;
     updateConnection();
