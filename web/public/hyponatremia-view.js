@@ -2,6 +2,10 @@ import { decimal } from './calculator.js';
 import { assessHyponatremia } from './hyponatremia.js';
 
 const outcomes = {
+  'need-sodium': ['Serum sodyumunu girin', 'Değerlendirmeye serum sodyumuyla başlayın. Semptomları laboratuvar sonuçlarını beklemeden değerlendirin.'],
+  'need-serum-osm': ['Hiponatremi var; hipotonisite değerlendirilmeli', 'Ölçülen serum osmolalitesini girin. Osmolalite sınıflandırması sonraki tanısal adımı belirler.'],
+  'need-urine-osm': ['Hipotonik hiponatremi; idrar osmolalitesi gerekli', 'Serum osmolalitesi <275 mOsm/kg. Sıradaki adımda idrarın seyrelme yanıtını değerlendirmek için idrar osmolalitesini girin.'],
+  'need-urine-sodium': ['İdrar seyrelmemiş; spot idrar sodyumu gerekli', 'Hipotonik hiponatremiye rağmen idrar osmolalitesi >100 mOsm/kg. Sıradaki adımda spot idrar sodyumunu girin.'],
   'no-hyponatremia': ['Sodyum hiponatremi aralığında değil', 'Girilen serum sodyumu 135 mmol/L veya üzerinde.'],
   'check-tonicity': ['Hipotonisite doğrulanmalı', 'Ölçülen osmolalite 275 mOsm/kg veya üzerinde. Glukozu, diğer etkili osmolleri ve psödohiponatremi olasılığını değerlendirin. Yüksek üre varsa efektif osmolaliteyi ayrıca değerlendirin.'],
   'dilute-urine': ['İdrar uygun şekilde seyrelmiş', 'İdrar osmolalitesi ≤100 mOsm/kg. Fazla su alımı ve düşük solüt alımını değerlendirin. Bu örnek klasik SIADH örüntüsünü karşılamıyor.'],
@@ -67,13 +71,14 @@ export function hyponatremiaView(main) {
     urgent.textContent = symptoms === 'severe'
       ? 'Acil değerlendirme gerekir. Ağır semptomlarda tanısal incelemeler acil tedaviyi geciktirmemeli; monitörizasyon ve seri sodyum takibi gerekir.'
       : 'Gecikmeden klinik değerlendirme gerekir. Semptomların hiponatremiyle ilişkisini ve diğer nedenleri değerlendirin.';
-    const values = Object.fromEntries(numeric.map((key) => [key, decimal(get(key).value)]));
+    const values = Object.fromEntries(numeric.map((key) => [
+      key, get(key).value.trim() === '' ? undefined : decimal(get(key).value)
+    ]));
     for (const key of clinical) values[key] = get(key).value;
-    const complete = numeric.every((key) => get(key).value.trim() !== '');
     const result = assessHyponatremia(values);
     const [title, reason] = result ? outcomes[result] : [
-      complete ? 'Girdileri kontrol edin' : 'Laboratuvar değerlerini girin',
-      complete ? 'Sodyum ve osmolalite değerleri pozitif, idrar sodyumu sıfır veya pozitif olmalı.' : 'Sonuç, gerekli laboratuvar değerleri tamamlandığında gösterilir.'
+      'Girdileri kontrol edin',
+      'Girilen sodyum ve osmolalite değerleri pozitif, idrar sodyumu sıfır veya pozitif sayılar olmalı.'
     ];
     get('result').textContent = title;
     get('reason').textContent = reason;

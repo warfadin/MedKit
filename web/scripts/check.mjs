@@ -45,6 +45,19 @@ test('SIAD assessment requires all exclusions and handles diagnostic boundaries'
   assert.equal(assessHyponatremia({...base,urineSodium:NaN}),null);
 });
 
+test('hyponatremia assessment progresses with partial labs and never treats missing as zero', () => {
+  assert.equal(assessHyponatremia({}),'need-sodium');
+  assert.equal(assessHyponatremia({sodium:140}),'no-hyponatremia');
+  assert.equal(assessHyponatremia({sodium:125}),'need-serum-osm');
+  assert.equal(assessHyponatremia({sodium:125,serumOsm:290}),'check-tonicity');
+  const hypotonic = {sodium:125,serumOsm:265};
+  assert.equal(assessHyponatremia(hypotonic),'need-urine-osm');
+  assert.equal(assessHyponatremia({...hypotonic,urineOsm:90}),'dilute-urine');
+  assert.equal(assessHyponatremia({...hypotonic,urineOsm:363}),'need-urine-sodium');
+  assert.equal(assessHyponatremia({...hypotonic,urineOsm:363,urineSodium:0}),'low-effective-volume');
+  assert.equal(assessHyponatremia({...hypotonic,urineOsm:NaN}),null);
+});
+
 test('serum osmolality keeps tonicity independent of urea and distinguishes laboratory units', () => {
   const values = {sodium:125,glucose:5,glucoseUnit:'mmol/L'};
   const calculate = (overrides) => serumOsmolality({...values,...overrides});
