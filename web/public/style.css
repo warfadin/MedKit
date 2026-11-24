@@ -55,6 +55,8 @@ h1 { font-size:clamp(1.85rem,4vw,3rem); letter-spacing:-.045em; line-height:1.1;
 h2 { font-size:1.2rem; letter-spacing:-.02em; }
 h3 { font-size:1rem; }
 .section-title { margin:24px 0 12px; }
+.tool-search { max-width:38rem; margin-bottom:10px; }
+.tool-search input { font-size:16px; }
 .page-head { margin-bottom:20px; }
 .page-head p,.muted { color:var(--muted); }
 .tiles,.grid { display:grid; gap:14px; }

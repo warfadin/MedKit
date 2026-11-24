@@ -70,6 +70,7 @@ let mealDate = '';
 const expanded = new Set();
 let toastTimer;
 let seed = {};
+let toolQuery = '';
 const seedReady = fetch('./snapshot.json').then((r) => r.ok ? r.json() : {}).then((data) => { seed = data; }).catch(() => {});
 const available = (key) => cached(key) ?? (seed[key] ? {data:seed[key]} : null);
 
@@ -118,14 +119,40 @@ for (const event of ['online','offline']) window.addEventListener(event, () => {
 });
 
 function home() {
+  const keywords = {
+    hesaplayici: 'infüzyon infuzyon vazopressör noradrenalin adrenalin dopamin dobutamin',
+    kilavuzlar: 'guideline rehber referans',
+    menuler: 'yemek hastane çamlık personel',
+    'araclar/hiponatremi': 'siad siadh uygunsuz adh sodyum',
+    'araclar/yogun-bakim': 'map ortalama arter basıncı oksijen pao2 fio2',
+    'araclar/nefroloji': 'böbrek kreatinin egfr albümin protein idrar osmolalite tonisite'
+  };
+  const normalize = (value) => value.toLocaleLowerCase('tr-TR').replace(/ı/g, 'i')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const tiles = [
     ...Object.entries(desc).map(([id, description]) => [id, labels[id][0], description, labels[id][2]]),
     ...Object.entries(clinicalTools).map(([id, tool]) => ['araclar/' + id, tool.title, tool.description, tool.path])
   ];
   main.innerHTML = '<section class="hero"><h1>Klinik Araçlar</h1><p>Dahiliye ve yoğun bakım için hesaplayıcılar, kılavuz karşılaştırmaları ve BUÜ yemek menüleri.</p></section>' +
-    '<h2 class="section-title">Araçlar</h2><div class="tiles">' + tiles.map(([id, name, description, path]) =>
-      '<a class="tile" href="#' + id + '"><span class="tile-icon">' + icon(path) + '</span><div><h2>' + name +
+    '<h2 class="section-title">Araçlar</h2><label class="field tool-search">Araç ara' +
+    '<input id="tool-search" type="search" autocomplete="off" placeholder="Ör. SIADH, böbrek, infüzyon" value="' + esc(toolQuery) + '"></label>' +
+    '<p id="tool-count" class="status" role="status"></p><div class="tiles">' + tiles.map(([id, name, description, path]) =>
+      '<a class="tile" data-tool="' + id + '" href="#' + id + '"><span class="tile-icon">' + icon(path) + '</span><div><h2>' + name +
       '</h2><p>' + description + '</p></div><span class="arrow">' + arrow + '</span></a>').join('') + '</div>';
+  const links = [...main.querySelectorAll('[data-tool]')];
+  function filterTools() {
+    toolQuery = $('tool-search').value;
+    const words = normalize(toolQuery).trim().split(/\s+/).filter(Boolean);
+    let count = 0;
+    for (const link of links) {
+      const searchable = normalize(link.textContent + ' ' + keywords[link.dataset.tool]);
+      link.hidden = !words.every((word) => searchable.includes(word));
+      if (!link.hidden) count++;
+    }
+    $('tool-count').textContent = count ? count + ' araç' : 'Eşleşen araç yok. Farklı bir sözcük deneyin.';
+  }
+  $('tool-search').oninput = filterTools;
+  filterTools();
 }
 
 function nephrology() {
