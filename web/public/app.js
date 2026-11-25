@@ -567,6 +567,21 @@ async function loadMenu(force, token) {
   }[result] ?? 'Kayıtlı menü gösteriliyor.');
 }
 
+function renderAssessment(render) {
+  render();
+  const controls = document.createElement('div');
+  controls.innerHTML = button('Değerlendirmeyi temizle', 'clear-assessment') +
+    '<p id="clear-assessment-help" class="status">Bu ekrandaki girdiler temizlenir; seçimler başlangıç durumuna döner.</p>';
+  main.querySelector('.page-head').append(controls);
+  const clear = $('clear-assessment');
+  clear.setAttribute('aria-describedby', 'clear-assessment-help');
+  clear.onclick = () => {
+    renderAssessment(render);
+    notify('Değerlendirme temizlendi. Yeni değerleri girebilirsiniz.');
+    main.querySelector('input:not([type="range"]), select')?.focus();
+  };
+}
+
 function draw(focus = false) {
   const [name,id] = location.hash.slice(1).split('/');
   const next = Object.hasOwn(labels,name) ? name : 'araclar';
@@ -580,9 +595,9 @@ function draw(focus = false) {
     if (a.hash === '#' + route) a.setAttribute('aria-current','page');
     else a.removeAttribute('aria-current');
   });
-  if (tool) tool.render();
+  if (tool) renderAssessment(tool.render);
   else if (route === 'araclar') home();
-  if (route === 'hesaplayici') calculator();
+  if (route === 'hesaplayici') renderAssessment(calculator);
   if (route === 'kilavuzlar') {
     guides();
     const selected = topics.find((t) => t.id === detail);
