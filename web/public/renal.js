@@ -1,3 +1,14 @@
+export function fractionalExcretionSodium({ plasmaSodium, urineSodium, plasmaCreatinine, urineCreatinine, plasmaUnit, urineUnit }) {
+  if (![plasmaSodium, plasmaCreatinine, urineCreatinine].every(value => Number.isFinite(value) && value > 0)
+      || !Number.isFinite(urineSodium) || urineSodium < 0) return null;
+  if (![plasmaUnit, urineUnit].every(unit => unit === 'mg/dL' || unit === 'µmol/L')) return null;
+  const plasmaMg = plasmaUnit === 'µmol/L' ? plasmaCreatinine / 88.4 : plasmaCreatinine;
+  const urineMg = urineUnit === 'µmol/L' ? urineCreatinine / 88.4 : urineCreatinine;
+  // KDIGO AKI 2012, Online Appendices, pp. 67–68; multiply the fraction by 100 for percent.
+  const percent = (urineSodium / plasmaSodium) * (plasmaMg / urineMg) * 100;
+  return Number.isFinite(percent) && (percent > 0 || urineSodium === 0) ? percent : null;
+}
+
 export function estimatedGfr({ age, sex, creatinine, unit }) {
   if (!Number.isInteger(age) || age < 18 || !Number.isFinite(creatinine) || creatinine <= 0) return null;
   if (sex !== 'female' && sex !== 'male') return null;

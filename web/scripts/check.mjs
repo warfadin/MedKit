@@ -6,9 +6,29 @@ import {cached,refresh} from '../public/cache.js';
 import {topics} from '../public/config.js';
 import {selectGuideEntry,validGuide} from '../public/guide-content.js';
 import {meanArterialPressure,oxygenationRatio} from '../public/icu.js';
-import {estimatedGfr,serumOsmolality,urineAlbuminCreatinineRatio} from '../public/renal.js';
+import {estimatedGfr,fractionalExcretionSodium,serumOsmolality,urineAlbuminCreatinineRatio} from '../public/renal.js';
 import {assessHyponatremia} from '../public/hyponatremia.js';
 import {watchAppUpdates} from '../public/updates.js';
+
+test('FENa reproduces manual examples, mixed creatinine units and invalid inputs', () => {
+  const values = {plasmaSodium:140, urineSodium:35, plasmaCreatinine:2, urineCreatinine:100, plasmaUnit:'mg/dL', urineUnit:'mg/dL'};
+  assert.equal(fractionalExcretionSodium(values), 0.5);
+  assert.equal(fractionalExcretionSodium({...values, urineSodium:140}), 2);
+  assert.equal(fractionalExcretionSodium({...values, urineSodium:0}), 0);
+  for (const plasmaUnit of ['mg/dL','µmol/L']) for (const urineUnit of ['mg/dL','µmol/L']) {
+    const result = fractionalExcretionSodium({...values, plasmaUnit, urineUnit,
+      plasmaCreatinine:plasmaUnit === 'mg/dL' ? 2 : 176.8,
+      urineCreatinine:urineUnit === 'mg/dL' ? 100 : 8840});
+    assert.ok(Math.abs(result - 0.5) < 1e-12);
+  }
+  for (const key of ['plasmaSodium','plasmaCreatinine','urineCreatinine']) {
+    for (const value of [0,-1,NaN,Infinity,undefined]) assert.equal(fractionalExcretionSodium({...values,[key]:value}),null);
+  }
+  for (const urineSodium of [-1,NaN,Infinity,undefined]) assert.equal(fractionalExcretionSodium({...values,urineSodium}),null);
+  assert.equal(fractionalExcretionSodium({...values,plasmaUnit:'mmol/L'}),null);
+  assert.equal(fractionalExcretionSodium({...values,urineUnit:'g/L'}),null);
+  assert.equal(fractionalExcretionSodium({...values,plasmaCreatinine:1e308,urineCreatinine:1e-308}),null);
+});
 
 test('app update notice waits for a replacement controller and ignores initial installation', () => {
   const workers = new EventTarget();

@@ -3,7 +3,7 @@ import { cached, read, refresh, write } from './cache.js';
 import { selectGuideEntry, validGuide } from './guide-content.js';
 import { agents, calculate, decimal, sliderDose, sliderLimit, sliderProgress } from './calculator.js';
 import { meanArterialPressure, oxygenationRatio } from './icu.js';
-import { estimatedGfr, serumOsmolality, urineAlbuminCreatinineRatio } from './renal.js';
+import { estimatedGfr, fractionalExcretionSodium, serumOsmolality, urineAlbuminCreatinineRatio } from './renal.js';
 import { hyponatremiaView } from './hyponatremia-view.js';
 import { watchAppUpdates } from './updates.js';
 
@@ -31,7 +31,7 @@ const clinicalTools = {
     path: 'M2 12h5l3-7 4 14 3-7h5', render: intensiveCare
   },
   nefroloji: {
-    title: 'Nefroloji Araçları', description: 'eGFR, idrar albümin/kreatinin oranı ve serum osmolalitesi',
+    title: 'Nefroloji Araçları', description: 'eGFR, FENa, idrar albümin/kreatinin oranı ve serum osmolalitesi',
     path: 'M9 4C5 2 3 6 3 10s2 7 5 7c2 0 3-2 3-4V9c0-2-1-4-2-5z M15 4c4-2 6 2 6 6s-2 7-5 7c-2 0-3-2-3-4V9c0-2 1-4 2-5z M9 14v6 M15 14v6',
     render: nephrology
   }
@@ -125,7 +125,7 @@ function home() {
     menuler: 'yemek hastane çamlık personel',
     'araclar/hiponatremi': 'siad siadh uygunsuz adh sodyum',
     'araclar/yogun-bakim': 'map ortalama arter basıncı oksijen pao2 fio2',
-    'araclar/nefroloji': 'böbrek kreatinin egfr albümin protein idrar osmolalite tonisite'
+    'araclar/nefroloji': 'böbrek kreatinin egfr albümin protein idrar osmolalite tonisite fena fraksiyonel sodyum atılımı'
   };
   const normalize = (value) => value.toLocaleLowerCase('tr-TR').replace(/ı/g, 'i')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -197,6 +197,23 @@ function nephrology() {
       <p class="status"><a href="https://www.niddk.nih.gov/health-information/professionals/advanced-search/quick-reference-uacr-gfr" target="_blank" rel="noopener noreferrer">NIDDK · Hesaplama</a> ·
         <a href="https://kdigo.org/guidelines/ckd-evaluation-and-management/" target="_blank" rel="noopener noreferrer">KDIGO · 2024 albüminüri kategorileri</a></p>
     </section>
+    <section class="card stack" aria-labelledby="fena-title">
+      <h2 id="fena-title">Fraksiyonel Sodyum Atılımı (FENa)</h2>
+      <p>Serum ve spot idrar değerlerini aynı zamanda alınan örneklerden girin. Her kreatinin değerinin birimini ayrı seçin.</p>
+      <div class="fields">
+        <label class="field">Serum sodyumu (mmol/L)<input id="fena-plasma-sodium" inputmode="decimal" autocomplete="off"></label>
+        <label class="field">İdrar sodyumu (mmol/L)<input id="fena-urine-sodium" inputmode="decimal" autocomplete="off"></label>
+        <label class="field">Serum kreatinin birimi<select id="fena-plasma-unit"><option value="mg/dL">mg/dL</option><option value="µmol/L">µmol/L</option></select></label>
+        <label class="field">Serum kreatinini<input id="fena-plasma-creatinine" inputmode="decimal" autocomplete="off"></label>
+        <label class="field">İdrar kreatinin birimi<select id="fena-urine-unit"><option value="mg/dL">mg/dL</option><option value="µmol/L">µmol/L</option></select></label>
+        <label class="field">İdrar kreatinini<input id="fena-urine-creatinine" inputmode="decimal" autocomplete="off"></label>
+      </div>
+      <div class="result"><span>FENa</span><strong id="fena-value" aria-live="polite">—</strong></div>
+      <p class="status" id="fena-message" role="status"></p>
+      <p>FENa (%) = (idrar Na × serum kreatinini) ÷ (serum Na × idrar kreatinini) × 100. Kreatininler hesaplama sırasında aynı birime çevrilir.</p>
+      <p class="note">FENa tek başına akut böbrek hasarının nedenini belirlemez. Diüretik kullanımı, kronik böbrek hastalığı ve sepsis yorumu etkileyebilir; düşük bir sonuç intrensek böbrek hasarını dışlamaz.</p>
+      <p class="status"><a href="https://kdigo.org/wp-content/uploads/2016/10/KDIGO-AKI-Suppl-Appendices-A-F_March2012.pdf#page=67" target="_blank" rel="noopener noreferrer">KDIGO AKI · 2012 ekleri, s. 67–68</a></p>
+    </section>
     <section class="card stack" aria-labelledby="osm-title">
       <h2 id="osm-title">Serum Osmolalitesi ve Tonisite</h2>
       <div class="fields">
@@ -242,6 +259,30 @@ function nephrology() {
   };
   bindUrineAlbuminRatio();
   bindSerumOsmolality();
+  bindFractionalSodium();
+}
+
+function bindFractionalSodium() {
+  const fields = ['plasma-sodium', 'urine-sodium', 'plasma-creatinine', 'urine-creatinine'].map(id => $('fena-' + id));
+  function update() {
+    const complete = fields.every(field => field.value.trim() !== '');
+    const result = complete ? fractionalExcretionSodium({
+      plasmaSodium: decimal(fields[0].value), urineSodium: decimal(fields[1].value),
+      plasmaCreatinine: decimal(fields[2].value), urineCreatinine: decimal(fields[3].value),
+      plasmaUnit: $('fena-plasma-unit').value, urineUnit: $('fena-urine-unit').value
+    }) : null;
+    $('fena-value').textContent = result === null ? '—' : showNumber(result) + ' %';
+    $('fena-message').textContent = complete && result === null ? 'Pozitif serum sodyumu ve kreatinin değerleri; sıfır veya pozitif idrar sodyumu girin.' : '';
+  }
+  for (const field of fields) field.oninput = update;
+  for (const [unit, input] of [[$('fena-plasma-unit'), fields[2]], [$('fena-urine-unit'), fields[3]]]) {
+    unit.onchange = () => {
+      const hadValue = input.value.trim() !== '';
+      input.value = '';
+      update();
+      if (hadValue) $('fena-message').textContent = 'Kreatinin değerini seçtiğiniz birimle tekrar girin.';
+    };
+  }
 }
 
 function bindSerumOsmolality() {
