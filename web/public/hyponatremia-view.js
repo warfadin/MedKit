@@ -55,7 +55,7 @@ export function hyponatremiaView(main) {
         <div role="status" aria-live="polite"><h3 id="hypo-result"></h3><p id="hypo-reason"></p></div>
         <p>SIADH bir dışlama tanısıdır. İdrar sodyumu özellikle diüretik kullanımı ve böbrek işlev bozukluğunda yanıltıcı olabilir.</p>
         <p>Pnömoni ve diğer akciğer hastalıkları, santral sinir sistemi hastalıkları, maligniteler ve ilaçlar olası nedenler arasında araştırılır. Ağrı ve bulantı da antidiürezi tetikleyebilir.</p>
-        <a href="#araclar/nefroloji">Serum osmolalitesi ve tonisite hesaplayıcısı</a>
+        <a href="#araclar/nefroloji/osmolalite">Serum osmolalitesi ve tonisite hesaplayıcısı</a>
         <p class="status"><a href="https://doi.org/10.1530/EJE-13-1020" target="_blank" rel="noopener noreferrer">Avrupa hiponatremi kılavuzu · 2014</a> ·
         <a href="https://www.kjim.org/journal/view.php?number=170730&amp;viewtype=pubreader" target="_blank" rel="noopener noreferrer">KSN önerileri · 2022, Tablo 3</a> ·
         <a href="https://www.endocrinology.org/media/xhrhxhxm/emergency-management-of-severe-and-moderately-severely-symptomatic-hyponatraemia-in-adult-patients-2022.pdf" target="_blank" rel="noopener noreferrer">Society for Endocrinology · 2022</a></p>

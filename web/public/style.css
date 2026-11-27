@@ -55,6 +55,9 @@ h1 { font-size:clamp(1.85rem,4vw,3rem); letter-spacing:-.045em; line-height:1.1;
 h2 { font-size:1.2rem; letter-spacing:-.02em; }
 h3 { font-size:1rem; }
 .section-title { margin:24px 0 12px; }
+.section-nav { margin:16px 0; }
+.section-nav a { padding:10px 12px; border:1px solid var(--line); border-radius:10px; }
+.card h2[id] { scroll-margin-top:100px; }
 .tool-search { max-width:38rem; margin-bottom:10px; }
 .tool-search input { font-size:16px; }
 .page-head { margin-bottom:20px; }

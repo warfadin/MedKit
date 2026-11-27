@@ -28,10 +28,12 @@ const clinicalTools = {
   },
   'yogun-bakim': {
     title: 'Yoğun Bakım Araçları', description: 'Ortalama arter basıncı ve PaO₂/FiO₂ oranı',
+    sections: {map:['MAP','map-title'], pf:['PaO₂/FiO₂','pf-title']},
     path: 'M2 12h5l3-7 4 14 3-7h5', render: intensiveCare
   },
   nefroloji: {
     title: 'Nefroloji Araçları', description: 'eGFR, FENa, idrar albümin/kreatinin oranı ve serum osmolalitesi',
+    sections: {egfr:['eGFR','egfr-title'], uacr:['uACR','uacr-title'], fena:['FENa','fena-title'], osmolalite:['Osmolalite ve tonisite','osm-title']},
     path: 'M9 4C5 2 3 6 3 10s2 7 5 7c2 0 3-2 3-4V9c0-2-1-4-2-5z M15 4c4-2 6 2 6 6s-2 7-5 7c-2 0-3-2-3-4V9c0-2 1-4 2-5z M9 14v6 M15 14v6',
     render: nephrology
   }
@@ -608,25 +610,38 @@ async function loadMenu(force, token) {
   }[result] ?? 'Kayıtlı menü gösteriliyor.');
 }
 
-function renderAssessment(render) {
+function renderAssessment(render, sections = {}) {
   render();
   const controls = document.createElement('div');
   controls.innerHTML = button('Değerlendirmeyi temizle', 'clear-assessment') +
     '<p id="clear-assessment-help" class="status">Bu ekrandaki girdiler temizlenir; seçimler başlangıç durumuna döner.</p>';
   main.querySelector('.page-head').append(controls);
+  if (Object.keys(sections).length) {
+    const nav = document.createElement('nav');
+    nav.className = 'row section-nav';
+    nav.setAttribute('aria-label', 'Bu ekrandaki hesaplayıcılar');
+    nav.innerHTML = Object.entries(sections).map(([id, [label]]) =>
+      '<a href="#araclar/' + detail + '/' + id + '">' + esc(label) + '</a>').join('');
+    nav.onclick = (event) => {
+      const anchor = event.target.closest('a');
+      if (anchor && anchor.hash === location.hash) { event.preventDefault(); draw(true); }
+    };
+    controls.before(nav);
+  }
   const clear = $('clear-assessment');
   clear.setAttribute('aria-describedby', 'clear-assessment-help');
   clear.onclick = () => {
-    renderAssessment(render);
+    renderAssessment(render, sections);
     notify('Değerlendirme temizlendi. Yeni değerleri girebilirsiniz.');
     main.querySelector('input:not([type="range"]), select')?.focus();
   };
 }
 
 function draw(focus = false) {
-  const [name,id] = location.hash.slice(1).split('/');
+  const [name,id,section] = location.hash.slice(1).split('/');
   const next = Object.hasOwn(labels,name) ? name : 'araclar';
   if (route === next && next === 'hesaplayici') return;
+  const sameTool = route === next && detail === id && next === 'araclar' && Object.hasOwn(clinicalTools, id);
   route = next;
   detail = id ?? '';
   const token = ++screen;
@@ -636,8 +651,9 @@ function draw(focus = false) {
     if (a.hash === '#' + route) a.setAttribute('aria-current','page');
     else a.removeAttribute('aria-current');
   });
-  if (tool) renderAssessment(tool.render);
-  else if (route === 'araclar') home();
+  if (tool) {
+    if (!sameTool) renderAssessment(tool.render, tool.sections);
+  } else if (route === 'araclar') home();
   if (route === 'hesaplayici') renderAssessment(calculator);
   if (route === 'kilavuzlar') {
     guides();
@@ -650,7 +666,12 @@ function draw(focus = false) {
     void seedReady.then(() => { if (screen === token) meals(); });
     void loadMenu(false,token);
   }
-  if (focus) { window.scrollTo(0,0); main.focus({preventScroll:true}); }
+  if (tool?.sections && Object.hasOwn(tool.sections, section)) {
+    const heading = $(tool.sections[section][1]);
+    heading.setAttribute('tabindex', '-1');
+    heading.focus({preventScroll:true});
+    heading.scrollIntoView({block:'start'});
+  } else if (focus) { window.scrollTo(0,0); main.focus({preventScroll:true}); }
 }
 window.addEventListener('hashchange', () => draw(true));
 updateConnection();
