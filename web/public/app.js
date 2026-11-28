@@ -28,12 +28,20 @@ const clinicalTools = {
   },
   'yogun-bakim': {
     title: 'Yoğun Bakım Araçları', description: 'Ortalama arter basıncı ve PaO₂/FiO₂ oranı',
-    sections: {map:['MAP','map-title'], pf:['PaO₂/FiO₂','pf-title']},
+    sections: {
+      map:['MAP','map-title','Ortalama Arter Basıncı (MAP)'],
+      pf:['PaO₂/FiO₂','pf-title','PaO₂/FiO₂ Oranı','p/f p-f pf oksijen oksijenlenme']
+    },
     path: 'M2 12h5l3-7 4 14 3-7h5', render: intensiveCare
   },
   nefroloji: {
     title: 'Nefroloji Araçları', description: 'eGFR, FENa, idrar albümin/kreatinin oranı ve serum osmolalitesi',
-    sections: {egfr:['eGFR','egfr-title'], uacr:['uACR','uacr-title'], fena:['FENa','fena-title'], osmolalite:['Osmolalite ve tonisite','osm-title']},
+    sections: {
+      egfr:['eGFR','egfr-title','Tahmini Glomerüler Filtrasyon Hızı (eGFR)','ckd-epi gfr'],
+      uacr:['uACR','uacr-title','İdrar Albümin/Kreatinin Oranı (uACR)','acr albuminuri mikroalbumin'],
+      fena:['FENa','fena-title','Fraksiyonel Sodyum Atılımı (FENa)','fe na'],
+      osmolalite:['Osmolalite ve tonisite','osm-title','Serum Osmolalitesi ve Tonisite','osmolarite efektif osmolalite']
+    },
     path: 'M9 4C5 2 3 6 3 10s2 7 5 7c2 0 3-2 3-4V9c0-2-1-4-2-5z M15 4c4-2 6 2 6 6s-2 7-5 7c-2 0-3-2-3-4V9c0-2 1-4 2-5z M9 14v6 M15 14v6',
     render: nephrology
   }
@@ -130,26 +138,53 @@ function home() {
     'araclar/nefroloji': 'böbrek kreatinin egfr albümin protein idrar osmolalite tonisite fena fraksiyonel sodyum atılımı'
   };
   const normalize = (value) => value.toLocaleLowerCase('tr-TR').replace(/ı/g, 'i')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    .normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
   const tiles = [
     ...Object.entries(desc).map(([id, description]) => [id, labels[id][0], description, labels[id][2]]),
     ...Object.entries(clinicalTools).map(([id, tool]) => ['araclar/' + id, tool.title, tool.description, tool.path])
   ];
+  const sections = Object.entries(clinicalTools).flatMap(([id, tool]) =>
+    Object.entries(tool.sections ?? {}).map(([section, [, , name, aliases = '']]) => ({
+      id: 'araclar/' + id + '/' + section,
+      parent: 'araclar/' + id,
+      name,
+      aliases,
+      group: tool.title,
+      path: tool.path
+    }))
+  );
+  const tile = (id, name, description, path) =>
+    '<a class="tile" data-tool="' + id + '" href="#' + id + '"><span class="tile-icon">' + icon(path) +
+    '</span><div><h2>' + esc(name) + '</h2><p>' + esc(description) + '</p></div><span class="arrow">' + arrow + '</span></a>';
   main.innerHTML = '<section class="hero"><h1>Klinik Araçlar</h1><p>Dahiliye ve yoğun bakım için hesaplayıcılar, kılavuz karşılaştırmaları ve BUÜ yemek menüleri.</p></section>' +
     '<h2 class="section-title">Araçlar</h2><label class="field tool-search">Araç ara' +
-    '<input id="tool-search" type="search" autocomplete="off" placeholder="Ör. SIADH, böbrek, infüzyon" value="' + esc(toolQuery) + '"></label>' +
-    '<p id="tool-count" class="status" role="status"></p><div class="tiles">' + tiles.map(([id, name, description, path]) =>
-      '<a class="tile" data-tool="' + id + '" href="#' + id + '"><span class="tile-icon">' + icon(path) + '</span><div><h2>' + name +
-      '</h2><p>' + description + '</p></div><span class="arrow">' + arrow + '</span></a>').join('') + '</div>';
-  const links = [...main.querySelectorAll('[data-tool]')];
+    '<input id="tool-search" type="search" autocomplete="off" placeholder="Ör. FENa, SIADH, MAP" value="' + esc(toolQuery) + '"></label>' +
+    '<p id="tool-count" class="status" role="status"></p><div class="tiles">' +
+    sections.map(({id, name, group, path}) => tile(id, name, group, path)).join('') +
+    tiles.map(([id, name, description, path]) => tile(id, name, description, path)).join('') + '</div>';
+  const links = new Map([...main.querySelectorAll('[data-tool]')].map(link => [link.dataset.tool, link]));
+  const show = (id, visible) => { links.get(id).hidden = !visible; };
   function filterTools() {
     toolQuery = $('tool-search').value;
     const words = normalize(toolQuery).trim().split(/\s+/).filter(Boolean);
+    const matches = (value) => {
+      const searchable = normalize(value);
+      return words.every(word => searchable.includes(word));
+    };
     let count = 0;
-    for (const link of links) {
-      const searchable = normalize(link.textContent + ' ' + keywords[link.dataset.tool]);
-      link.hidden = !words.every((word) => searchable.includes(word));
-      if (!link.hidden) count++;
+    const matchedGroups = new Set();
+    for (const {id, parent, name, group, aliases} of sections) {
+      const visible = words.length > 0 && matches([name, group, aliases].join(' '));
+      show(id, visible);
+      if (visible) {
+        matchedGroups.add(parent);
+        count++;
+      }
+    }
+    for (const [id, name, description] of tiles) {
+      const visible = !matchedGroups.has(id) && matches([name, description, keywords[id]].join(' '));
+      show(id, visible);
+      if (visible) count++;
     }
     $('tool-count').textContent = count ? count + ' araç' : 'Eşleşen araç yok. Farklı bir sözcük deneyin.';
   }
